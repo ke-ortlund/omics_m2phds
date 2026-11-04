@@ -33,4 +33,4 @@ rna_260821 <- read_csv("publicData_serology_260821.csv")
 ### Filter flow cytometry for classic monocytes 
 ### 3 studies have monocytes: rna_SDY224_Bcells, rna_SDY224, rna_SDY2941
 flow_mon <- flow %>%
-  filter(name == "Classical_monocytes")
+  filter(name == "Intermediate_monocytes")
