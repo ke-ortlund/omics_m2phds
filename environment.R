@@ -8,3 +8,4 @@ input_path <- file.path("C:/Users",  username, "add file path")
 
 # Set wd
 setwd(input_path)
+ll
