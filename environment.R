@@ -1,5 +1,6 @@
-###### Environment Setup 
-### Set working directory
+############Environment Setup############
+
+#####Set working directory##### 
 # Dynamic user name
 username <- Sys.getenv("HOME")
 
@@ -9,17 +10,17 @@ input_path <- file.path(username, "Documents", "GitHub", "omics_m2phds", "data")
 # Set wd
 setwd(input_path)
 
-###### Load packages
+#####Load packages##### 
 pacman::p_load(tidyverse)
 
-###### Load datasets 
+#####Load datasets#####  
 # Particpants
 dem <- read.csv("participants.csv")
 # Vaccination history 
 dem_vacc <- read.csv("participant_vaccineHistory.csv")
 # Flow Cytometry 
 flow <- read.csv("publicData_ex_vivo_flow.csv")
-### RNA SEQ Datasets
+# RNA SEQ Datasets
 rna_uga_2019 <- read.csv("publicData_rnaseq_2019_UGA.csv")
 rna_uga_2020 <- read.csv("publicData_rnaseq_2020_UGA.csv")
 rna_uga_2024 <- read.csv("publicData_rnaseq_2024_UGA.csv")
@@ -28,13 +29,12 @@ rna_SDY2867 <- read_csv("publicData_rnaseq_SDY2867.csv")
 rna_SDY2941 <- read_csv("publicData_rnaseq_SDY2941.csv")
 rna_260821 <- read_csv("publicData_serology_260821.csv")
 
-###### Filter and Merge Datasets
+#####Filter and Merge Datasets##### 
 ### Take only monocytes at day 7
 flow_mon <- flow %>%
   filter(name == "Classical_monocytes", timepoint == "7")
 
 ### Find participants with monocyte data that have RNA seq data
-
 # Define merge keys
 keys <- c("participant_id", "study_accession", "subject")
 
@@ -75,3 +75,7 @@ flow_mon_clean <- flow_mon %>%
 ### Create a clean demographic dataset with the study sample
 dem_clean <- dem %>%
   semi_join(flow_mon_clean, by = keys)
+
+### Create a clean vaccine history dataset with the study sample
+vacc_clean <- dem_vacc %>%
+  semi_join(flow_mon_clean, by = "subject")
