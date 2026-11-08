@@ -66,7 +66,7 @@ flow_mon_rna_clean <- flow_mon %>%
              relationship = "many-to-many")
 
 # Check the number of participants with both monocyte and RNA seq data
-n_distinct(flow_mon_rna$participant_id)
+n_distinct(flow_mon_rna_clean$participant_id)
 
 ### Create a clean monocyte dataset with the study sample
 flow_mon_clean <- flow_mon %>%
