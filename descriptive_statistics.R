@@ -15,4 +15,12 @@ dem_clean %>%
               label = list(biological_sex = "Sex", race = "Race", age = "Age")) %>%
               modify_header(label ~ "**Demographic**")
             
-  
+flow_mon_clean %>%
+  ggplot(aes(x = value)) + 
+  geom_histogram() + 
+  theme_bw()
+
+flow_mon_all_timepoints %>%
+  ggplot(aes(x = timepoint, y = value, color = "participant_id")) + 
+  geom_point() + 
+  theme_bw()

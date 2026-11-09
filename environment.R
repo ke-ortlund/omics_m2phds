@@ -34,6 +34,9 @@ rna_260821 <- read_csv("publicData_serology_260821.csv")
 flow_mon <- flow %>%
   filter(name == "Classical_monocytes", timepoint == "7")
 
+flow_mon_all_timepoints <- flow %>%
+  filter(name == "Classical_monocytes")
+
 ### Find participants with monocyte data that have RNA seq data
 # Define merge keys
 keys <- c("participant_id", "study_accession", "subject")
@@ -59,7 +62,6 @@ rna_mon <- rna_list %>%
   map(~ mutate(.x, comments = as.character(comments))) %>%
   bind_rows(.id = "rna_dataset")
 
-# 
 flow_mon_rna_clean <- flow_mon %>%
   inner_join(rna_mon, by = keys,
              suffix = c("_flow", "_rna"),
