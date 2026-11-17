@@ -1,4 +1,6 @@
-############Environment Setup############
+###############################################################################
+# ENVIRONMENT SETUP 
+###############################################################################
 
 #####Set working directory##### 
 # Dynamic user name
@@ -29,7 +31,9 @@ rna_SDY2867 <- read_csv("publicData_rnaseq_SDY2867.csv")
 rna_SDY2941 <- read_csv("publicData_rnaseq_SDY2941.csv")
 rna_260821 <- read_csv("publicData_serology_260821.csv")
 
-#####Filter and Merge Datasets##### 
+###############################################################################
+# Filter and Merge Datasets
+###############################################################################
 ### Take only monocytes at day 7
 flow_mon <- flow %>%
   filter(name == "Classical_monocytes", timepoint == "7")
@@ -82,7 +86,11 @@ dem_clean <- dem %>%
 vacc_clean <- dem_vacc %>%
   semi_join(flow_mon_clean, by = "subject")
 
-#####Data datasets#####
+###############################################################################
+# Data Cleaning 
+###############################################################################
+
 # Standardized value column. 2024_UGA study was multiplied by 100 to convert from proportion to percentage.  
 flow_mon_clean <- flow_mon_clean %>% 
   mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value))
+

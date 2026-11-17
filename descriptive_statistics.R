@@ -1,7 +1,25 @@
-########Descriptive Statistics########
+###############################################################################
+# Descriptive Statistics
+###############################################################################
 
-######Load packages
+
+###### Load packages
 pacman::p_load(tidyverse, gtsummary)
+
+###### Set global theme
+theme_set(theme_bw() +
+            theme(title = element_text(size = 15, color = "grey30"),
+                  axis.title.x = element_text(size = 15, color = "grey30"),
+                  axis.title.y = element_text(size = 15, color = "grey30"),
+                  axis.text.x = element_text(size = 15, color = "grey30"),
+                  axis.text.y = element_text(size = 15, color = "grey30"),
+                  panel.grid = element_blank(),
+                  strip.text = element_text(size = 15, color = "grey30"),
+                  strip.background = element_blank(), 
+                  legend.position = "bottom",
+                  legend.key.size = unit(3, "cm"),
+                  legend.text = element_text(size = 15, color = "grey30"))) 
+
 
 ###### Table 1
 dem_clean %>%
@@ -14,13 +32,11 @@ dem_clean %>%
               digits = all_continuous() ~ 2,
               label = list(biological_sex = "Sex", race = "Race", age = "Age")) %>%
               modify_header(label ~ "**Demographic**")
-            
-flow_mon_clean %>%
-  ggplot(aes(x = value)) + 
-  geom_histogram() + 
-  theme_bw()
 
-flow_mon_all_timepoints %>%
-  ggplot(aes(x = timepoint, y = value, color = "participant_id")) + 
-  geom_point() + 
-  theme_bw()
+###### S        
+flow_mon_clean %>%
+  ggplot(aes(x = value_clean)) + 
+  geom_histogram() +
+  labs(x = "Classical monocytes (%/parent population) ", y = "Frequency")
+
+
