@@ -81,3 +81,8 @@ dem_clean <- dem %>%
 ### Create a clean vaccine history dataset with the study sample
 vacc_clean <- dem_vacc %>%
   semi_join(flow_mon_clean, by = "subject")
+
+#####Data datasets#####
+# Standardized value column. 2024_UGA study was multiplied by 100 to convert from proportion to percentage.  
+flow_mon_clean <- flow_mon_clean %>% 
+  mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value))
