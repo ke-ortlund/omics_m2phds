@@ -12,298 +12,321 @@ library(edgeR)    # RNA-seq filtering + TMM normalisation
 library(here)     # project-relative file paths
 
 set.seed(123)                                 # reproducibility of folds / CV
-theme_set(theme_bw() +
-            theme(title = element_text(size = 15, color = "grey30"),
-                  axis.title.x = element_text(size = 15, color = "grey30"),
-                  axis.title.y = element_text(size = 15, color = "grey30"),
-                  axis.text.x = element_text(size = 15, color = "grey30"),
-                  axis.text.y = element_text(size = 15, color = "grey30"),
-                  panel.grid = element_blank(),
-                  strip.text = element_text(size = 15, color = "grey30"),
-                  strip.background = element_blank(), 
-                  legend.position = "bottom",
-                  legend.key.size = unit(3, "cm"),
-                  legend.text = element_text(size = 15, color = "grey30"))) 
 
 ###############################################################################
-#  1. DATA CHECKS BEFORE MODELLING
+#  1. ANALYSIS DATASET: one row per participant
 ###############################################################################
 
-### 2c. One day-7 value per participant? (should return 0 rows)
-flow_mon_clean %>% count(participant_id) %>% filter(n > 1)
-# returned zero rows, so participants only have one value each
+### How many rows per participant? (more than 1 = several vaccine-history rows)
+mon_dem_clean %>% count(participant_id) %>% count(n, name = "n_participants")
 
-# Plot 
-monocytes_by_study <- ggplot(flow_mon_clean, aes(study_accession, value_clean)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(width = 0.1, alpha = 0.6) +
-  labs(x = "Study", y = "Day-7 classical monocytes (proportion of CD45+ cells)")
+### Collapse to one row per participant
+pred_dat <- mon_dem_clean %>%
+  group_by(participant_id, study_accession) %>%
+  summarise(
+    monocytes    = first(value_clean),     # day-7 classical monocytes (% of CD45+)
+    age          = first(age),             # CHECK column name in dem
+    sex          = first(sex),             # CHECK column name in dem
+    # 1 if ANY recorded prior influenza vaccination, otherwise 0
+    vacc_history = as.integer(any(vacc_binary == 1, na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  arrange(participant_id)                  # same order as the columns of logcpm
 
-# Save
-ggsave(file.path(output_folder, "monocytes_by_study.png"), monocytes_by_study,
-       width = 7, height = 6, dpi = 300)
+nrow(pred_dat)                             # 77 (fewer if some lack vaccine history)
+pred_dat %>% count(study_accession)        # 53 SDY2867, 24 2024_UGA
+summary(pred_dat)                          # check for NAs
 
-### 2c. RNA-seq: material, raw counts available, duplicates
-rna_mon %>% count(study_accession, material)
-rna_mon %>% group_by(study_accession) %>% summarise(na_counts = sum(is.na(counts)))
-rna_mon %>% count(participant_id, ensembl_gene_id) %>% filter(n > 1)   # should be 0 rows
-# returned zero rows, so there are no duplicates
-
-
-###############################################################################
-#  3. ANALYSIS DATASET: OUTCOME + COVARIATES
-###############################################################################
-
-prediction_dat <- flow_mon_clean %>%
-  select(participant_id, study_accession, mono_d7 = value_clean) %>%
-  left_join(dem_clean %>% select(participant_id, age, biological_sex),   # CHECK column names in dem_clean
-            by = "participant_id") %>%
-  arrange(participant_id)                                     # fixed order for matching later
-
-summary(prediction_dat)   # check for NAs in age / sex
-nrow(prediction_dat)      # 77
-
+### Match the expression matrix to the participants in pred_dat
+ids <- pred_dat$participant_id
+stopifnot(all(ids %in% colnames(logcpm)))  # every participant has RNA-seq
+logcpm_pred <- logcpm[, ids]               # same participants, same order
 
 ###############################################################################
-#  4. RNA-SEQ PREPROCESSING
+#  2. OUTCOME: day-7 classical monocyte frequency (not log-transformed)
 ###############################################################################
 
-### 4a. Genes measured in BOTH studies
-# A gene missing from one study would otherwise be filled with 0 for all its
-# participants, creating a fake "study" signal.
-common_genes <- rna_mon %>%
-  distinct(study_accession, ensembl_gene_id) %>%
-  count(ensembl_gene_id) %>%
-  filter(n == n_distinct(rna_mon$study_accession)) %>%
-  pull(ensembl_gene_id)
+### Distribution by study
+p_outcome <- ggplot(pred_dat, aes(monocytes)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~ study_accession, scales = "free_y") +
+  labs(x = "Day-7 classical monocytes (% of CD45+ cells)", y = "Participants",
+       title = "Distribution of the outcome by study")
+ggsave(file.path(fig_folder, "outcome_distribution.png"), p_outcome,
+       width = 9, height = 5, dpi = 300)
+p_outcome
 
-length(common_genes)   # report this number in the methods
-
-### 4b. Raw count matrix: genes (rows) x participants (columns)
-counts_mat <- rna_mon %>%
-  filter(participant_id %in% dat$participant_id,
-         ensembl_gene_id %in% common_genes) %>%
-  select(participant_id, ensembl_gene_id, counts) %>%
-  pivot_wider(names_from  = participant_id,  ## pivoting to have participants as columns and genes as rows
-              values_from = counts,
-              values_fn   = sum) %>%
-  tibble::column_to_rownames("ensembl_gene_id") %>%
-  as.matrix()
-
-counts_mat <- counts_mat[, dat$participant_id]   # same participant order as prediction_dat
-dim(counts_mat)                                  # genes x 77
-
-### 4c. Filter low-expressed genes, TMM-normalise, log2-CPM
-dge    <- DGEList(counts = counts_mat, group = dat$study_accession)
-keep   <- filterByExpr(dge, group = dat$study_accession)
-dge    <- calcNormFactors(dge[keep, , keep.lib.sizes = FALSE], method = "TMM")
-logcpm <- cpm(dge, log = TRUE)
-
-sum(keep)   # number of genes after filtering (report in methods)
-
-### 4d. Keep the 1,000 most variable genes
-# Unsupervised: uses gene variance only, never the outcome, so no leakage.
-top_genes <- names(sort(apply(logcpm, 1, var), decreasing = TRUE))[1:1000]
-X_genes   <- t(logcpm[top_genes, ])   # participants x genes
-
-dim(X_genes)                                  # 77 x 1000
-all(rownames(X_genes) == dat$participant_id)  # MUST be TRUE
-
+### Standardise the pooled outcome (mean 0, SD 1)
+y_vec <- as.numeric(scale(pred_dat$monocytes))
 
 ###############################################################################
-#  5. OUTCOME TRANSFORMATION + PREDICTOR SETS
+#  3. PREDICTORS
 ###############################################################################
 
-### 5a. Log-transform the outcome (proportions are right-skewed), then standardise
-dat <- dat %>% mutate(y_log = log2(mono_d7))
-hist(dat$y_log, main = "log2 day-7 classical monocytes", xlab = "")
+### 3a. Genes: participants (rows) x genes (columns), all genes after filterByExpr
+X_genes <- t(logcpm_pred)
 
-y_vec <- as.numeric(scale(dat$y_log))   # mean 0, SD 1 -> sRMSE < 1 beats the mean
+# remove genes with zero variance (they cannot be standardised)
+X_genes <- X_genes[, apply(X_genes, 2, sd) > 0]
 
-### 5b. Covariates as a numeric matrix (sex and study become 0/1 columns)
-X_cov <- model.matrix(~ age + sex + study_accession, data = dat)[, -1] %>% scale()
-stopifnot(nrow(X_cov) == length(y_vec))   # fails if NAs dropped rows
-
-### 5c. Standardised genes
+# standardise every gene (mean 0, SD 1), as in the practical
 X_genes_s <- scale(X_genes)
+dim(X_genes_s)                                   # 77 x number of genes
 
-### 5d. Three predictor sets to compare
-X_A <- X_cov                      # A: reference (age, sex, study)
-X_B <- X_genes_s                  # B: genes only
-X_C <- cbind(X_cov, X_genes_s)    # C: genes + age, sex, study
+### 3b. Covariates: age, sex, vaccine history, study
+# model.matrix turns sex and study into 0/1 columns
+X_cov <- model.matrix(~ age + sex + vacc_history + study_accession,
+                      data = pred_dat)[, -1, drop = FALSE] %>%
+  scale()
+
+# model.matrix silently drops rows with NA: check nothing was lost
+stopifnot(nrow(X_cov) == length(y_vec))
+colnames(X_cov)
+
+### 3c. Three predictor sets
+X_A <- X_cov                       # A: covariates only (reference)
+X_B <- X_genes_s                   # B: genes only
+X_C <- cbind(X_cov, X_genes_s)     # C: genes + covariates (main model)
+
+### 3d. Penalty factor for model C
+# 0 = covariate is never penalised (always kept in the model)
+# 1 = gene is penalised as usual (can be shrunk to 0)
+pf_C <- c(rep(0, ncol(X_cov)), rep(1, ncol(X_genes_s)))
 
 n <- length(y_vec)
 
-
 ###############################################################################
-#  6. HELPER FUNCTIONS
+#  4. HELPER FUNCTIONS
 ###############################################################################
 
-### 6a. Performance metrics
+### 4a. Performance metrics (from the practical)
+# sRMSE: RMSE divided by SD of the outcome. < 1 = better than predicting the mean.
+# R2   : squared Pearson correlation between observed and predicted values.
 calculate_metrics <- function(true, predicted) {
-  list(
-    sRMSE    = sqrt(mean((true - predicted)^2)) / sd(true),  # < 1 = better than mean
-    R2       = cor(true, predicted, method = "pearson")^2,   # variance explained
-    Spearman = cor(true, predicted, method = "spearman")     # ranking accuracy
-  )
+  sRMSE <- sqrt(mean((true - predicted)^2)) / sd(true)
+  R2    <- cor(true, predicted, method = "pearson")^2
+  list(sRMSE = sRMSE, R2 = R2)
 }
 
-### 6b. Observed vs predicted plot, coloured by study
+### 4b. Observed vs predicted plot (from the practical, coloured by study)
 plot_predictions <- function(true, predicted, study, title) {
-  lims <- range(c(true, predicted))
-  ggplot(data.frame(true, predicted, study),
-         aes(true, predicted, colour = study)) +
+  rng  <- range(c(true, predicted))
+  pad  <- diff(rng) * 0.02
+  lims <- c(rng[1] - pad, rng[2] + pad)
+  
+  ggplot(data.frame(true, predicted, study), aes(true, predicted, colour = study)) +
     geom_point(alpha = 0.8, size = 2) +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "red") +
+    geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
     coord_equal(xlim = lims, ylim = lims) +
-    labs(title = title,
-         x = "Observed (standardised log2)", y = "Predicted", colour = "Study")
+    labs(title = title, x = "Observed (standardised)", y = "Predicted", colour = "Study")
 }
 
-### 6c. Nested cross-validation for the elastic net
-# Outer loop: evaluates performance on unseen participants.
-# Inner loop (5-fold, inside caret::train): tunes alpha and lambda on training data only.
-nested_cv_enet <- function(X, y, folds, grid, penalty_factor = rep(1, ncol(X))) {
-  n         <- length(y)
-  pred      <- rep(NA_real_, n)
+### 4c. Nested cross-validation for any caret model
+# Outer loop : each fold is held out once as test data -> unbiased predictions.
+# Inner loop : 5-fold CV on the training data only -> chooses hyperparameters.
+# "..." passes extra arguments to the model (e.g. penalty.factor for glmnet).
+nested_cv <- function(X, y, folds, method, grid, ...) {
+  pred      <- rep(NA_real_, length(y))
   best_tune <- vector("list", length(folds))
   selected  <- vector("list", length(folds))
   
   for (i in seq_along(folds)) {
     test_idx  <- folds[[i]]
-    train_idx <- setdiff(seq_len(n), test_idx)
+    train_idx <- setdiff(seq_along(y), test_idx)
     
+    # tune and fit on the training participants only
     fit <- train(
-      x = X[train_idx, ], y = y[train_idx],
-      method    = "glmnet",
+      x         = X[train_idx, , drop = FALSE],
+      y         = y[train_idx],
+      method    = method,
       tuneGrid  = grid,
       trControl = trainControl(method = "cv", number = 5),
       metric    = "RMSE",
-      penalty.factor = penalty_factor          # 0 = never penalised (always kept)
+      ...
     )
     
-    pred[test_idx] <- predict(fit, newdata = X[test_idx, ])
+    # predict the held-out participants
+    pred[test_idx] <- predict(fit, newdata = X[test_idx, , drop = FALSE])
     best_tune[[i]] <- fit$bestTune
     
-    # genes with non-zero coefficients in this fold (for stability selection)
-    cf <- as.matrix(coef(fit$finalModel, s = fit$bestTune$lambda))
-    selected[[i]] <- setdiff(rownames(cf)[cf[, 1] != 0], "(Intercept)")
+    # for glmnet models: store variables with non-zero coefficients
+    if (method == "glmnet") {
+      cf <- as.matrix(coef(fit$finalModel, s = fit$bestTune$lambda))
+      selected[[i]] <- setdiff(rownames(cf)[cf[, 1] != 0], "(Intercept)")
+    }
   }
   
   list(pred = pred, best_tune = bind_rows(best_tune), selected = selected)
 }
 
-
 ###############################################################################
-#  7. OUTER FOLDS (stratified by study)
-###############################################################################
-
-# Stratifying on study puts both studies in every training and test set.
-folds <- createFolds(factor(dat$study_accession), k = 10, list = TRUE)
-
-sapply(folds, function(idx) table(dat$study_accession[idx]))   # check composition
-
-
-###############################################################################
-#  8. FIT THE THREE MODELS
+#  5. OUTER CROSS-VALIDATION FOLDS
 ###############################################################################
 
-### Hyperparameter grid (lambda spread over orders of magnitude)
-lambda_grid <- c(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10)
-enet_grid   <- expand.grid(alpha = seq(0, 1, 0.25), lambda = lambda_grid)
+folds <- createFolds(factor(pred_dat$study_accession), k = 10, list = TRUE)
 
-### 8a. Model A: reference (linear regression, same outer folds, nothing to tune)
-pred_A <- rep(NA_real_, n)
+# check: both studies in every fold
+sapply(folds, function(idx) table(pred_dat$study_accession[idx]))
+
+###############################################################################
+#  6. REFERENCE MODEL: covariates only (linear regression)
+###############################################################################
+
+pred_ref <- rep(NA_real_, n)
+
 for (i in seq_along(folds)) {
   test_idx  <- folds[[i]]
   train_idx <- setdiff(seq_len(n), test_idx)
-  df_train  <- data.frame(y = y_vec[train_idx], X_A[train_idx, ])
-  df_test   <- data.frame(X_A[test_idx, ])
-  pred_A[test_idx] <- predict(lm(y ~ ., data = df_train), newdata = df_test)
+  
+  df_train <- data.frame(y = y_vec[train_idx], X_A[train_idx, , drop = FALSE])
+  df_test  <- data.frame(X_A[test_idx, , drop = FALSE])
+  
+  fit_lm <- lm(y ~ ., data = df_train)
+  pred_ref[test_idx] <- predict(fit_lm, newdata = df_test)
 }
 
-### 8b. Model B: genes only (elastic net)
-res_B <- nested_cv_enet(X_B, y_vec, folds, enet_grid)
-
-### 8c. Model C: genes + covariates (covariates unpenalised so always included)
-pf_C  <- c(rep(0, ncol(X_cov)), rep(1, ncol(X_genes_s)))
-res_C <- nested_cv_enet(X_C, y_vec, folds, enet_grid, penalty_factor = pf_C)
-
-### 8d. Check tuned hyperparameters
-# If alpha/lambda sit at the edge of the grid, extend the grid in that direction.
-res_B$best_tune
-res_C$best_tune
-
+calculate_metrics(y_vec, pred_ref)
 
 ###############################################################################
-#  9. COMPARE PERFORMANCE
+#  7. MAIN MODEL: ELASTIC NET
 ###############################################################################
 
-model_metrics <- bind_rows(
-  "A: Reference (age, sex, study)"     = calculate_metrics(y_vec, pred_A),
-  "B: Genes only (elastic net)"        = calculate_metrics(y_vec, res_B$pred),
-  "C: Genes + reference (elastic net)" = calculate_metrics(y_vec, res_C$pred),
-  .id = "model"
+### Hyperparameter grid
+# alpha: 0 = ridge, 1 = lasso, in between = elastic net
+# lambda: penalty strength, spread over several orders of magnitude
+lambda_grid <- c(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 20, 50)
+enet_grid   <- expand.grid(alpha = seq(0, 1, 0.25), lambda = lambda_grid)
+
+### 7a. Elastic net: genes only
+res_enet_B <- nested_cv(X_B, y_vec, folds, method = "glmnet", grid = enet_grid)
+
+### 7b. Elastic net: genes + covariates (MAIN MODEL)
+res_enet_C <- nested_cv(X_C, y_vec, folds, method = "glmnet", grid = enet_grid,
+                        penalty.factor = pf_C)
+
+### Check the tuned hyperparameters in each outer fold
+# If lambda is often the largest value in the grid, extend the grid upwards.
+res_enet_B$best_tune
+res_enet_C$best_tune
+
+###############################################################################
+#  8. SENSITIVITY ANALYSES: OTHER MODELS (predictors: genes + covariates)
+###############################################################################
+
+### 8a. Ridge regression (alpha = 0): keeps all genes, shrinks coefficients
+res_ridge <- nested_cv(X_C, y_vec, folds, method = "glmnet",
+                       grid = expand.grid(alpha = 0, lambda = lambda_grid),
+                       penalty.factor = pf_C)
+
+### 8b. Lasso regression (alpha = 1): sets most gene coefficients exactly to 0
+res_lasso <- nested_cv(X_C, y_vec, folds, method = "glmnet",
+                       grid = expand.grid(alpha = 1, lambda = lambda_grid),
+                       penalty.factor = pf_C)
+
+### 8c. Principal component regression: regression on the first PCs of the predictors
+ncomp_grid <- data.frame(ncomp = c(1, 2, 5, 10, 20))
+res_pcr <- nested_cv(X_C, y_vec, folds, method = "pcr", grid = ncomp_grid)
+
+### 8d. Partial least squares: components chosen to covary with the outcome
+res_pls <- nested_cv(X_C, y_vec, folds, method = "pls", grid = ncomp_grid)
+
+### 8e. Random forest: non-linear ensemble of decision trees
+p <- ncol(X_C)
+rf_grid <- expand.grid(
+  mtry          = c(floor(sqrt(p)), floor(p / 10)),   # genes tried at each split
+  splitrule     = "variance",                         # regression
+  min.node.size = c(5, 10)
 )
+res_rf <- nested_cv(X_C, y_vec, folds, method = "ranger", grid = rf_grid)
+
+###############################################################################
+#  9. PERFORMANCE OF ALL MODELS
+###############################################################################
+
+### Collect the cross-validated predictions of every model
+all_preds <- list(
+  "Reference: age, sex, vaccine history, study" = pred_ref,
+  "Elastic net: genes only"                     = res_enet_B$pred,
+  "Elastic net: genes + covariates (main)"      = res_enet_C$pred,
+  "Ridge: genes + covariates"                   = res_ridge$pred,
+  "Lasso: genes + covariates"                   = res_lasso$pred,
+  "PCR: genes + covariates"                     = res_pcr$pred,
+  "PLS: genes + covariates"                     = res_pls$pred,
+  "Random forest: genes + covariates"           = res_rf$pred
+)
+
+### Metrics table: one row per model
+model_metrics <- all_preds %>%
+  map(~ calculate_metrics(y_vec, .x)) %>%
+  bind_rows(.id = "model") %>%
+  mutate(across(c(sRMSE, R2), ~ round(.x, 3)))
+
 model_metrics
-write.csv(model_metrics, here("output", "prediction_metrics.csv"), row.names = FALSE)
+write.csv(model_metrics, file.path(tab_folder, "prediction_model_metrics.csv"),
+          row.names = FALSE)
 
-# Key comparison: C vs A. Does gene expression add anything beyond age, sex, study?
+### Observed vs predicted plot for every model, saved to output/figures
+iwalk(all_preds, function(pred, model_name) {
+  p <- plot_predictions(y_vec, pred, pred_dat$study_accession,
+                        paste0(model_name, "\n(nested cross-validation)"))
+  file_name <- paste0("pred_", gsub("[^A-Za-z0-9]+", "_", model_name), ".png")
+  ggsave(file.path(fig_folder, file_name), p, width = 8, height = 8, dpi = 300)
+})
 
-p_B <- plot_predictions(y_vec, res_B$pred, dat$study_accession,
-                        "Elastic net (genes only): nested CV predictions")
-p_C <- plot_predictions(y_vec, res_C$pred, dat$study_accession,
-                        "Elastic net (genes + covariates): nested CV predictions")
-ggsave(here("output", "pred_enet_B.pdf"), p_B, width = 8, height = 8)
-ggsave(here("output", "pred_enet_C.pdf"), p_C, width = 8, height = 8)
-p_C
+### Tuned hyperparameters per model (useful for the methods/appendix)
+best_tunes <- list(
+  "Elastic net: genes only"     = res_enet_B$best_tune,
+  "Elastic net: genes + covs"   = res_enet_C$best_tune,
+  "Ridge"                       = res_ridge$best_tune,
+  "Lasso"                       = res_lasso$best_tune,
+  "PCR"                         = res_pcr$best_tune,
+  "PLS"                         = res_pls$best_tune,
+  "Random forest"               = res_rf$best_tune
+) %>% bind_rows(.id = "model")
 
+write.csv(best_tunes, file.path(tab_folder, "prediction_best_hyperparameters.csv"),
+          row.names = FALSE)
 
 ###############################################################################
-#  10. STABILITY SELECTION: which genes are chosen consistently?
+#  10. INTERPRETATION: GENES SELECTED BY THE MAIN ELASTIC NET
 ###############################################################################
 
-stability <- function(selected_list, exclude = colnames(X_cov)) {
-  freq <- table(unlist(selected_list)) / length(selected_list)
-  data.frame(gene = names(freq), prop = as.numeric(freq)) %>%
-    filter(!gene %in% exclude) %>%     # drop covariates, keep genes
-    arrange(desc(prop))
-}
+### 10a. Stability selection: proportion of outer folds selecting each gene
+selection_freq <- table(unlist(res_enet_C$selected)) / length(folds)
 
-stab_C <- stability(res_C$selected)
+stability <- data.frame(gene = names(selection_freq),
+                        prop = as.numeric(selection_freq)) %>%
+  filter(!gene %in% colnames(X_cov)) %>%          # keep genes, drop covariates
+  arrange(desc(prop))
 
-### Map Ensembl IDs to gene symbols (if org.Hs.eg.db is installed)
+# Optional: Ensembl ID -> gene symbol (needs Bioconductor package org.Hs.eg.db)
 if (requireNamespace("org.Hs.eg.db", quietly = TRUE)) {
-  stab_C$symbol <- AnnotationDbi::mapIds(
-    org.Hs.eg.db::org.Hs.eg.db,
-    keys = stab_C$gene, keytype = "ENSEMBL",
-    column = "SYMBOL", multiVals = "first"
-  )
+  stability$symbol <- AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
+                                            keys = stability$gene,
+                                            keytype = "ENSEMBL", column = "SYMBOL",
+                                            multiVals = "first")
 } else {
-  stab_C$symbol <- NA_character_
+  stability$symbol <- NA_character_
 }
 
-head(stab_C, 20)
-write.csv(stab_C, here("output", "stability_selection_C.csv"), row.names = FALSE)
+head(stability, 20)
+write.csv(stability, file.path(tab_folder, "enet_gene_stability.csv"), row.names = FALSE)
 
-### Genes selected in at least half of the outer folds
-p_stab <- stab_C %>%
+# Genes selected in at least half of the folds
+p_stab <- stability %>%
   filter(prop >= 0.5) %>%
   mutate(label = coalesce(symbol, gene)) %>%
   ggplot(aes(reorder(label, prop), prop)) +
   geom_col() +
   coord_flip() +
   labs(x = "Gene", y = "Proportion of outer folds selected",
-       title = "Genes selected in ≥50% of folds (model C)")
-ggsave(here("output", "stability_C.pdf"), p_stab, width = 8, height = 8)
+       title = "Genes selected in ≥50% of folds (main elastic net)")
+ggsave(file.path(fig_folder, "enet_gene_stability.png"), p_stab,
+       width = 8, height = 8, dpi = 300)
 p_stab
 
-
-###############################################################################
-#  11. FINAL MODEL ON ALL DATA (interpretation only, NOT for reporting performance)
-###############################################################################
-
-final_C <- train(
+### 10b. Final model on all participants (coefficients for interpretation only)
+final_enet <- train(
   x = X_C, y = y_vec,
   method    = "glmnet",
   tuneGrid  = enet_grid,
@@ -312,40 +335,15 @@ final_C <- train(
   penalty.factor = pf_C
 )
 
-final_C$bestTune
+final_enet$bestTune
 
-cf_final <- as.matrix(coef(final_C$finalModel, s = final_C$bestTune$lambda))
-final_coefs <- data.frame(feature = rownames(cf_final), coef = cf_final[, 1]) %>%
-  filter(coef != 0, feature != "(Intercept)") %>%
-  arrange(desc(abs(coef)))
+final_coefs <- as.matrix(coef(final_enet$finalModel, s = final_enet$bestTune$lambda)) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("feature") %>%
+  rename(coefficient = 2) %>%
+  filter(coefficient != 0, feature != "(Intercept)") %>%
+  arrange(desc(abs(coefficient)))
 
 head(final_coefs, 20)
-# Positive coefficient: higher baseline expression -> higher day-7 monocytes
-
-
-###############################################################################
-#  12. SENSITIVITY ANALYSIS: train on SDY2867, test on 2024_UGA
-###############################################################################
-
-train_idx <- which(dat$study_accession == "SDY2867")
-test_idx  <- which(dat$study_accession == "2024_UGA")
-
-# Study is constant within the training set, so remove the study column
-keep_cols   <- !grepl("study_accession", colnames(X_C))
-X_C_nostudy <- X_C[, keep_cols]
-pf_nostudy  <- pf_C[keep_cols]
-
-fit_ext <- train(
-  x = X_C_nostudy[train_idx, ], y = y_vec[train_idx],
-  method    = "glmnet",
-  tuneGrid  = enet_grid,
-  trControl = trainControl(method = "cv", number = 5),
-  metric    = "RMSE",
-  penalty.factor = pf_nostudy
-)
-
-pred_ext <- predict(fit_ext, newdata = X_C_nostudy[test_idx, ])
-calculate_metrics(y_vec[test_idx], pred_ext)
-# Exploratory only: 24 test participants
-
-
+write.csv(final_coefs, file.path(tab_folder, "enet_final_coefficients.csv"), row.names = FALSE)
+# Positive coefficient: higher baseline expression -> higher day-7 monocyte frequency
