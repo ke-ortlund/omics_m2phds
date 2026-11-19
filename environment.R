@@ -100,7 +100,7 @@ n_distinct(flow_mon_rna_clean$participant_id)
 flow_mon_clean <- flow_mon %>%
   semi_join(rna_mon, by = keys)
 
-### Create a clean vaccine history dataset with a binary sum column (yes if particpant has received at least 1 vaccine)
+### Create a clean vaccine history dataset with a binary sum column (yes if participant has received at least 1 vaccine)
 vacc_clean <- vacc %>%
   mutate(vacc_binary = if_else(startsWith(received, "Yes"), 1, 0)) %>%
   group_by(subject) %>%
