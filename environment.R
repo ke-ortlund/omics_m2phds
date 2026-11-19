@@ -117,22 +117,29 @@ mon_dem_clean <- flow_mon_clean %>%
 # Data Cleaning 
 ###############################################################################
 
-# Standardized value column. 2024_UGA study was multiplied by 100 to convert from proportion to percentage.  
+### Standardized value column. 2024_UGA study was multiplied by 100 to convert from proportion to percentage.  
+# Check that 2024 UGA values are a proportion 
+scale_check <- flow %>%
+  filter(study_accession %in% c("2024_UGA", "SDY2867"),
+         parent_population %in% c("CD45plus_cells", "CD45+ cells"),
+         timepoint == "7") %>%
+  group_by(study_accession, participant_id) %>%
+  summarise(total = sum(value), .groups = "drop") %>%
+  group_by(study_accession) %>%
+  summarise(median_total = median(total),
+            min_total    = min(total),
+            max_total    = max(total))
+
+# Clean data
 mon_dem_clean <- mon_dem_clean %>% 
   mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value),
 # Create binary column for vaccine history 
          vacc_binary = if_else(startsWith(received, "Yes"), 1, 0))
-# check 
-mon_dem_clean %>% 
-distinct(study_accession, participant_id, value_clean) %>%
-  group_by(study_accession) %>%
-  summarise(
-    n_participants = n_distinct(participant_id),
-    min_pct = min(value_clean, na.rm = TRUE),
-    max_pct = max(value_clean, na.rm = TRUE),
-    mean_pct = mean(value_clean, na.rm = TRUE)
-  )
 
+# Check harmonized results  
+flow_mon_clean %>%
+  group_by(study_accession) %>%
+  summarise(min = min(value_clean), median = median(value_clean), max = max(value_clean))
 
 ### Filter for Genes commonly expressed 
 
