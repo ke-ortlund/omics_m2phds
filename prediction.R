@@ -12,13 +12,24 @@ library(edgeR)    # RNA-seq filtering + TMM normalisation
 library(here)     # project-relative file paths
 
 set.seed(123)                                 # reproducibility of folds / CV
-theme_set(theme_minimal(base_size = 14))      # default look for all plots
-dir.create(here("output"), showWarnings = FALSE)
+theme_set(theme_bw() +
+            theme(title = element_text(size = 15, color = "grey30"),
+                  axis.title.x = element_text(size = 15, color = "grey30"),
+                  axis.title.y = element_text(size = 15, color = "grey30"),
+                  axis.text.x = element_text(size = 15, color = "grey30"),
+                  axis.text.y = element_text(size = 15, color = "grey30"),
+                  panel.grid = element_blank(),
+                  strip.text = element_text(size = 15, color = "grey30"),
+                  strip.background = element_blank(), 
+                  legend.position = "bottom",
+                  legend.key.size = unit(3, "cm"),
+                  legend.text = element_text(size = 15, color = "grey30"))) 
 
 ###############################################################################
 #  1. DATA CHECKS BEFORE MODELLING
 ###############################################################################
 
+### 2a. Scale check of monocytes by study (checked proportions vs percentages)
 scale_check <- flow %>%
   filter(study_accession %in% c("2024_UGA", "SDY2867"),
          parent_population %in% c("CD45plus_cells", "CD45+ cells"),
@@ -30,43 +41,47 @@ scale_check <- flow %>%
             min_total    = min(total),
             max_total    = max(total))
 scale_check   # print it to check
-write.csv(scale_check, here("output", "flow_scale_check.csv"), row.names = FALSE)
-
-### 2a. One day-7 value per participant? (should return 0 rows)
-flow_mon_clean %>% count(participant_id) %>% filter(n > 1)
+write.csv(scale_check, file.path(output_folder, "flow_scale_check.csv"), row.names = FALSE)
+# this showed that the UGA study values were indeed proportions and not percentages so in the environment script I multiplied the values by 100 to convert to percentages
 
 ### 2b. Are outcome values on the same scale in both studies?
 flow_mon_clean %>%
   group_by(study_accession) %>%
-  summarise(min = min(value), median = median(value), max = max(value))
+  summarise(min = min(value_clean), median = median(value_clean), max = max(value_clean))
+
+### 2c. One day-7 value per participant? (should return 0 rows)
+flow_mon_clean %>% count(participant_id) %>% filter(n > 1)
+# returned zero rows, so participants only have one value each
 
 # Plot 
-x <- ggplot(flow_mon_clean, aes(study_accession, value)) +
+monocytes_by_study <- ggplot(flow_mon_clean, aes(study_accession, value_clean)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.1, alpha = 0.6) +
   labs(x = "Study", y = "Day-7 classical monocytes (proportion of CD45+ cells)")
 
 # Save
-ggsave(x, path)
+ggsave(file.path(output_folder, "monocytes_by_study.png"), monocytes_by_study,
+       width = 7, height = 6, dpi = 300)
 
 ### 2c. RNA-seq: material, raw counts available, duplicates
 rna_mon %>% count(study_accession, material)
 rna_mon %>% group_by(study_accession) %>% summarise(na_counts = sum(is.na(counts)))
 rna_mon %>% count(participant_id, ensembl_gene_id) %>% filter(n > 1)   # should be 0 rows
+# returned zero rows, so there are no duplicates
 
 
 ###############################################################################
 #  3. ANALYSIS DATASET: OUTCOME + COVARIATES
 ###############################################################################
 
-dat <- flow_mon_clean %>%
-  select(participant_id, study_accession, mono_d7 = value) %>%
-  left_join(dem_clean %>% select(participant_id, age, sex),   # CHECK column names in dem_clean
+prediction_dat <- flow_mon_clean %>%
+  select(participant_id, study_accession, mono_d7 = value_clean) %>%
+  left_join(dem_clean %>% select(participant_id, age, biological_sex),   # CHECK column names in dem_clean
             by = "participant_id") %>%
   arrange(participant_id)                                     # fixed order for matching later
 
-summary(dat)   # check for NAs in age / sex
-nrow(dat)      # 77
+summary(prediction_dat)   # check for NAs in age / sex
+nrow(prediction_dat)      # 77
 
 
 ###############################################################################
@@ -89,13 +104,13 @@ counts_mat <- rna_mon %>%
   filter(participant_id %in% dat$participant_id,
          ensembl_gene_id %in% common_genes) %>%
   select(participant_id, ensembl_gene_id, counts) %>%
-  pivot_wider(names_from  = participant_id,
+  pivot_wider(names_from  = participant_id,  ## pivoting to have participants as columns and genes as rows
               values_from = counts,
               values_fn   = sum) %>%
   tibble::column_to_rownames("ensembl_gene_id") %>%
   as.matrix()
 
-counts_mat <- counts_mat[, dat$participant_id]   # same participant order as dat
+counts_mat <- counts_mat[, dat$participant_id]   # same participant order as prediction_dat
 dim(counts_mat)                                  # genes x 77
 
 ### 4c. Filter low-expressed genes, TMM-normalise, log2-CPM
