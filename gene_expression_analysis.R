@@ -26,25 +26,8 @@ flow_mon_rna_clean %>%
   )
 
 
-###############################################################################
-# 3. HARMONIZATION OF MONOCYTE PERCENTAGES
-###############################################################################
-#### Create a separate dataset for gene expression analysis to preserve
-# the original dataset 
-# Monocyte values from 2024_UGA are stored as proportions (0-1),
-# whereas SDY2867 values are already expressed as percentages (0-100).
-# Multiply 2024_UGA values by 100 to harmonize the measurement scale.
-# The original 'value' variable remains unchanged.
-
-gene_analysis_data <- flow_mon_rna_clean %>%
-  mutate(
-    monocyte_pct = if_else(
-      study_accession == "2024_UGA",
-      value * 100,
-      value
-    )
-  )
-
+### gene_analysis_data is now flow_mon_clean
+### monocyte_pct is no value_clean 
 
 ###############################################################################
 # 4. VERIFICATION OF MONOCYTE PERCENTAGE HARMONIZATION
