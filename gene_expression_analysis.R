@@ -29,23 +29,6 @@ flow_mon_rna_clean %>%
 ### gene_analysis_data is now flow_mon_clean
 ### monocyte_pct is no value_clean 
 
-###############################################################################
-# 4. VERIFICATION OF MONOCYTE PERCENTAGE HARMONIZATION
-###############################################################################
-#### Compare monocyte percentages across the two studies.
-# Use distinct() to avoid counting each participant repeatedly for every gene.
-
-gene_analysis_data %>%
-  distinct(study_accession, participant_id, monocyte_pct) %>%
-  group_by(study_accession) %>%
-  summarise(
-    n_participants = n_distinct(participant_id),
-    min_pct = min(monocyte_pct, na.rm = TRUE),
-    max_pct = max(monocyte_pct, na.rm = TRUE),
-    mean_pct = mean(monocyte_pct, na.rm = TRUE)
-  )
-
-
 
 ###############################################################################
 # 5. VERIFICATION OF RNA-SEQ DATA STRUCTURE
