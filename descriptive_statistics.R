@@ -36,11 +36,21 @@ mon_dem_clean %>%
               label = list(biological_sex = "Sex", race = "Race", age = "Age")) %>%
               modify_header(label ~ "**Demographic**")
 
-###### S        
+######         
 flow_mon_clean %>%
   ggplot(aes(x = value_clean)) + 
   geom_histogram(fill = "#1874CD") +
   scale_x_continuous(breaks = seq(0, 35, by = 5)) +
   coord_cartesian(xlim = c(0, 35)) +
   labs(x = "Classical monocytes (%/parent population) ", y = "Frequency")
+
+flow_mon_clean %>%
+  ggplot(aes(x = value_clean)) + 
+  geom_boxplot(fill = "#1874CD") +
+  scale_x_continuous(breaks = seq(0, 35, by = 5)) +
+  coord_cartesian(xlim = c(0, 35)) +
+  labs(x = "Classical monocytes (%/parent population) ", y = "Frequency")
+
+
+
 
