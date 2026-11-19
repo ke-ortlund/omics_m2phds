@@ -19,7 +19,7 @@ pacman::p_load(tidyverse, here, edgeR)
 # Particpants
 dem <- read.csv("participants.csv")
 # Vaccination history 
-dem_vacc <- read.csv("participant_vaccineHistory.csv")
+vacc <- read.csv("participant_vaccineHistory.csv")
 # Flow Cytometry 
 flow <- read.csv("publicData_ex_vivo_flow.csv")
 # RNA SEQ Datasets
@@ -100,17 +100,18 @@ n_distinct(flow_mon_rna_clean$participant_id)
 flow_mon_clean <- flow_mon %>%
   semi_join(rna_mon, by = keys)
 
-### Create a clean demographic dataset with the study sample
-dem_clean <- dem %>%
-  semi_join(flow_mon_clean, by = keys)
-
-### Create a clean vaccine history dataset with the study sample
-vacc_clean <- dem_vacc %>%
-  semi_join(flow_mon_clean, by = "subject")
-
+### Create a clean vaccine history dataset with a binary sum column (yes if particpant has received at least 1 vaccine)
+vacc_clean <- vacc %>%
+  mutate(vacc_binary = if_else(startsWith(received, "Yes"), 1, 0)) %>%
+  group_by(subject) %>%
+  summarise(
+    vacc_any = as.integer(any(vacc_binary == 1, na.rm = TRUE)),
+    .groups = "drop"
+  )
+  
 ### Merge demographic, vaccine, and monocyte datasets 
 mon_dem_clean <- flow_mon_clean %>%
-  inner_join(dem_clean, by = keys) %>%
+  left_join(dem, by = keys) %>%
   left_join(vacc_clean, by = "subject", relationship = "many-to-many")
 
 ###############################################################################
