@@ -29,26 +29,6 @@ theme_set(theme_bw() +
 #  1. DATA CHECKS BEFORE MODELLING
 ###############################################################################
 
-### 2a. Scale check of monocytes by study (checked proportions vs percentages)
-scale_check <- flow %>%
-  filter(study_accession %in% c("2024_UGA", "SDY2867"),
-         parent_population %in% c("CD45plus_cells", "CD45+ cells"),
-         timepoint == "7") %>%
-  group_by(study_accession, participant_id) %>%
-  summarise(total = sum(value), .groups = "drop") %>%
-  group_by(study_accession) %>%
-  summarise(median_total = median(total),
-            min_total    = min(total),
-            max_total    = max(total))
-scale_check   # print it to check
-write.csv(scale_check, file.path(output_folder, "flow_scale_check.csv"), row.names = FALSE)
-# this showed that the UGA study values were indeed proportions and not percentages so in the environment script I multiplied the values by 100 to convert to percentages
-
-### 2b. Are outcome values on the same scale in both studies?
-flow_mon_clean %>%
-  group_by(study_accession) %>%
-  summarise(min = min(value_clean), median = median(value_clean), max = max(value_clean))
-
 ### 2c. One day-7 value per participant? (should return 0 rows)
 flow_mon_clean %>% count(participant_id) %>% filter(n > 1)
 # returned zero rows, so participants only have one value each

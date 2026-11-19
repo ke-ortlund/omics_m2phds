@@ -111,7 +111,7 @@ vacc_clean <- dem_vacc %>%
 ### Merge demographic, vaccine, and monocyte datasets 
 mon_dem_clean <- flow_mon_clean %>%
   inner_join(dem_clean, by = keys) %>%
-  inner_join(vacc_clean, by = "subject")
+  left_join(vacc_clean, by = c("study_accession", "subject"))
 
 ###############################################################################
 # Data Cleaning 
