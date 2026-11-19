@@ -13,7 +13,7 @@ input_path <- file.path(username, "Documents", "GitHub", "omics_m2phds", "data")
 setwd(input_path)
 
 #####Load packages##### 
-pacman::p_load(tidyverse)
+pacman::p_load(tidyverse, here, edgeR)
 
 #####Load datasets#####  
 # Particpants
@@ -34,6 +34,24 @@ rna_260821 <- read_csv("publicData_serology_260821.csv")
 # Create output folder
 dir.create(here("output"), showWarnings = FALSE)
 output_folder <- here("output")
+
+
+###############################################################################
+# Set global theme 
+###############################################################################
+
+theme_set(theme_bw() +
+            theme(title = element_text(size = 15, color = "grey30"),
+                  axis.title.x = element_text(size = 15, color = "grey30"),
+                  axis.title.y = element_text(size = 15, color = "grey30"),
+                  axis.text.x = element_text(size = 15, color = "grey30"),
+                  axis.text.y = element_text(size = 15, color = "grey30"),
+                  panel.grid = element_blank(),
+                  strip.text = element_text(size = 15, color = "grey30"),
+                  strip.background = element_blank(), 
+                  legend.position = "bottom",
+                  legend.key.size = unit(3, "cm"),
+                  legend.text = element_text(size = 15, color = "grey30"))) 
 
 ###############################################################################
 # Filter and Merge Datasets
@@ -90,32 +108,42 @@ dem_clean <- dem %>%
 vacc_clean <- dem_vacc %>%
   semi_join(flow_mon_clean, by = "subject")
 
-### Merge demographic and monocyte datasets 
+### Merge demographic, vaccine, and monocyte datasets 
 mon_dem_clean <- flow_mon_clean %>%
-  inner_join(dem_clean, by = keys)
+  inner_join(dem_clean, by = keys) %>%
+  inner_join(vacc_clean, by = "subject")
 
 ###############################################################################
 # Data Cleaning 
 ###############################################################################
 
 # Standardized value column. 2024_UGA study was multiplied by 100 to convert from proportion to percentage.  
-flow_mon_clean <- flow_mon_clean %>% 
-  mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value))
+mon_dem_clean <- mon_dem_clean %>% 
+  mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value),
+# Create binary column for vaccine history 
+         vacc_binary = if_else(startsWith(received, "Yes"), 1, 0))
+# check 
+mon_dem_clean %>% 
+distinct(study_accession, participant_id, value_clean) %>%
+  group_by(study_accession) %>%
+  summarise(
+    n_participants = n_distinct(participant_id),
+    min_pct = min(value_clean, na.rm = TRUE),
+    max_pct = max(value_clean, na.rm = TRUE),
+    mean_pct = mean(value_clean, na.rm = TRUE)
+  )
 
-###############################################################################
-#  TMM normalisation of day-0 RNA-SEQ (study sample only)
-###############################################################################
 
-library(edgeR)
+### Filter for Genes commonly expressed 
 
-### 1. Participant order: one row per participant in the study sample
+# 1. Participant order: one row per participant in the study sample
 sample_info <- flow_mon_clean %>%
   distinct(participant_id, study_accession) %>%
   arrange(participant_id)
 
 nrow(sample_info)   # expect 77
 
-### 2. Genes measured in BOTH studies
+# 2. Genes measured in BOTH studies
 # A gene missing from one study would otherwise appear as 0 expression for all
 # of that study's participants, creating a fake "study" signal.
 common_genes <- rna_mon %>%
@@ -127,15 +155,15 @@ common_genes <- rna_mon %>%
 
 length(common_genes)   # report in methods
 
-### 3. Raw count matrix: genes (rows) x participants (columns)
+# 3. Raw count matrix: genes (rows) x participants (columns)
 counts_mat <- rna_mon %>%
   filter(participant_id %in% sample_info$participant_id,
          ensembl_gene_id %in% common_genes,
-         material == "PBMCs") %>%                     # note: "PBMCs" with an s
+         material == "PBMCs") %>%                     
   select(participant_id, ensembl_gene_id, counts) %>%
   pivot_wider(names_from  = participant_id,
               values_from = counts,
-              values_fn   = sum) %>%                  # sums any duplicate rows
+              values_fn   = sum) %>%                
   tibble::column_to_rownames("ensembl_gene_id") %>%
   as.matrix()
 
@@ -144,7 +172,7 @@ counts_mat <- counts_mat[, sample_info$participant_id]   # fixed participant ord
 dim(counts_mat)                 # genes x 77
 sum(is.na(counts_mat))          # should be 0
 
-### 4. Filter low-expressed genes
+# 4. Filter low-expressed genes
 # filterByExpr keeps genes with enough reads in enough samples,
 # taking group sizes (here: study) into account.
 dge  <- DGEList(counts = counts_mat, group = sample_info$study_accession)
@@ -153,14 +181,18 @@ dge  <- dge[keep, , keep.lib.sizes = FALSE]
 
 sum(keep)   # number of genes after filtering (report in methods)
 
-### 5. TMM normalisation
+###############################################################################
+# TMM normalisation of day-0 RNA-SEQ (study sample only)
+###############################################################################
+
+# 1. TMM normalisation
 # Computes a scaling factor per sample to correct for sequencing depth and
 # composition differences between samples.
 dge <- calcNormFactors(dge, method = "TMM")
 
 summary(dge$samples$norm.factors)   # usually close to 1 (e.g. 0.7-1.3)
 
-### 6. Log2 counts per million (TMM-adjusted)
+# 2. Log2 counts per million (TMM-adjusted)
 logcpm <- cpm(dge, log = TRUE, prior.count = 1)
 
 dim(logcpm)                                           # genes x 77
