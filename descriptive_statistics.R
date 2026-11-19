@@ -22,14 +22,17 @@ theme_set(theme_bw() +
 
 
 ###### Table 1
-dem_clean %>%
+mon_dem_clean %>%
   mutate(race = fct_relevel(race, "Unknown", after = Inf)) %>%
-  tbl_summary(include = c(biological_sex, race, age),
+  tbl_summary(include = c(biological_sex, race, age, value_clean),
+              type = list(age = "continuous2", value_clean = "continuous2"),
               statistic = list(
-                all_continuous() ~ "{mean} ({sd})",
+                all_continuous() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})"),
                 all_categorical() ~ "{n} ({p}%)"
               ),
-              digits = all_continuous() ~ 2,
+              digits = list(
+                all_continuous() ~ 1,
+                all_categorical() ~ c(0, 1)),
               label = list(biological_sex = "Sex", race = "Race", age = "Age")) %>%
               modify_header(label ~ "**Demographic**")
 
@@ -38,5 +41,4 @@ flow_mon_clean %>%
   ggplot(aes(x = value_clean)) + 
   geom_histogram() +
   labs(x = "Classical monocytes (%/parent population) ", y = "Frequency")
-
 

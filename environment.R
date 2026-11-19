@@ -86,6 +86,10 @@ dem_clean <- dem %>%
 vacc_clean <- dem_vacc %>%
   semi_join(flow_mon_clean, by = "subject")
 
+### Merge demographic and monocyte datasets 
+mon_dem_clean <- flow_mon_clean %>%
+  inner_join(dem_clean, by = keys)
+
 ###############################################################################
 # Data Cleaning 
 ###############################################################################
