@@ -133,12 +133,10 @@ scale_check <- flow %>%
 
 # Clean data
 mon_dem_clean <- mon_dem_clean %>% 
-  mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value),
-# Create binary column for vaccine history 
-         vacc_binary = if_else(startsWith(received, "Yes"), 1, 0))
+  mutate(value_clean = if_else(study_accession == "2024_UGA", value*100, value))
 
 # Check harmonized results  
-flow_mon_clean %>%
+mon_dem_clean %>%
   group_by(study_accession) %>%
   summarise(min = min(value_clean), median = median(value_clean), max = max(value_clean))
 
