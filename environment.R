@@ -158,8 +158,7 @@ length(common_genes)   # report in methods
 # 3. Raw count matrix: genes (rows) x participants (columns)
 counts_mat <- rna_mon %>%
   filter(participant_id %in% sample_info$participant_id,
-         ensembl_gene_id %in% common_genes,
-         material == "PBMCs") %>%                     
+         ensembl_gene_id %in% common_genes) %>%
   select(participant_id, ensembl_gene_id, counts) %>%
   pivot_wider(names_from  = participant_id,
               values_from = counts,

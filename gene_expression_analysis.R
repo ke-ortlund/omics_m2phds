@@ -4,31 +4,6 @@
 names(flow_mon_rna_clean)
 
 
-# Check the units used for monocyte measurements.
-# We need to confirm that the values represent percentages.
-table(flow_mon_rna_clean$unit, useNA = "ifany")
-
-
-###############################################################################
-# 2. VERIFY MONOCYTE MEASUREMENTS
-###############################################################################
-# Check monocyte values by study.
-# This helps identify differences in measurement scales
-# before performing gene expression association analysis.
-flow_mon_rna_clean %>%
-  group_by(study_accession) %>%
-  summarise(
-    n_participants = n_distinct(participant_id),
-    min_value = min(value, na.rm = TRUE),
-    max_value = max(value, na.rm = TRUE),
-    mean_value = mean(value, na.rm = TRUE)
-  )
-
-
-### gene_analysis_data is now flow_mon_clean
-### monocyte_pct is no value_clean 
-
-
 ###############################################################################
 # 5. VERIFICATION OF RNA-SEQ DATA STRUCTURE
 ###############################################################################
@@ -41,7 +16,6 @@ gene_analysis_data %>%
     n_rows = n()
   ) %>%
   print()
-
 
 ###############################################################################
 # 6. CHECK FOR DUPLICATED GENE MEASUREMENTS
