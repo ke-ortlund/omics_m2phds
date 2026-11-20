@@ -172,10 +172,10 @@ counts_mat <- rna_mon %>%
   tibble::column_to_rownames("ensembl_gene_id") %>%
   as.matrix()
 
-counts_mat <- counts_mat[, sample_info$participant_id]   # fixed participant order
+counts_mat <- counts_mat[, sample_info$participant_id]   
 
-dim(counts_mat)                 # genes x 77
-sum(is.na(counts_mat))          # should be 0
+dim(counts_mat)                 
+sum(is.na(counts_mat))      
 
 # 4. Filter low-expressed genes
 # filterByExpr keeps genes with enough reads in enough samples,
@@ -195,17 +195,17 @@ sum(keep)   # number of genes after filtering (report in methods)
 # composition differences between samples.
 dge <- calcNormFactors(dge, method = "TMM")
 
-summary(dge$samples$norm.factors)   # usually close to 1 (e.g. 0.7-1.3)
+summary(dge$samples$norm.factors) 
 
 # 2. Log2 counts per million (TMM-adjusted)
 logcpm <- cpm(dge, log = TRUE, prior.count = 1)
 
-dim(logcpm)                                           # genes x 77
-all(colnames(logcpm) == sample_info$participant_id)  # must be TRUE
+dim(logcpm)                                           
+all(colnames(logcpm) == sample_info$participant_id)  
 
 ### 7. Save for use in other scripts
 # Saved in data/ (ignored by Git, so it is not pushed: confidential data)
-saveRDS(dge,         here("data", "dge_tmm.rds"))     # for limma-voom (needs counts + norm factors)
-saveRDS(logcpm,      here("data", "logcpm_tmm.rds"))  # for PCA and prediction
+saveRDS(dge,         here("data", "dge_tmm.rds"))     
+saveRDS(logcpm,      here("data", "logcpm_tmm.rds")) 
 saveRDS(sample_info, here("data", "sample_info.rds"))
 
