@@ -29,6 +29,8 @@ tab_folder <- file.path(output_folder, "tables")
 dir.create(fig_folder, showWarnings = FALSE)
 dir.create(tab_folder, showWarnings = FALSE)
 
+### Display names for the studies (used in all plots)
+study_labels <- c("2024_UGA" = "UGA 2024", "SDY2867" = "SDY 2867")
 
 ###############################################################################
 #  1. ANALYSIS DATASET: one row per participant
@@ -128,6 +130,7 @@ plot_predictions <- function(true, predicted, study, title) {
     geom_point(alpha = 0.8, size = 2) +
     geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
     coord_equal(xlim = lims, ylim = lims) +
+    scale_colour_discrete(labels = study_labels) +          # nicer legend names
     labs(title = title, x = "Observed (standardised)", y = "Predicted", colour = "Study")
 }
 
@@ -245,17 +248,23 @@ res_rf <- nested_cv(X_C, y_vec, folds, method = "ranger", grid = rf_grid)
 #  9. PERFORMANCE OF ALL MODELS
 ###############################################################################
 
-### Cross-validated predictions of every model
+### 9a. Cross-validated predictions of every model
+# Each vector holds one out-of-sample prediction per participant (from nested CV)
 all_preds <- list(
-  "Reference: age, sex, study" = pred_ref,
-  "Elastic net: genes only"                     = res_enet_B$pred,
-  "Elastic net: genes + covariates (main)"      = res_enet_C$pred,
-  "Ridge: genes + covariates"                   = res_ridge$pred,
-  "Lasso: genes + covariates"                   = res_lasso$pred,
-  "Random forest: genes + covariates"           = res_rf$pred
+  "Reference: age, sex, study"             = pred_ref,
+  "Elastic net: genes only"                = res_enet_B$pred,
+  "Elastic net: genes + covariates (main)" = res_enet_C$pred,
+  "Ridge: genes + covariates"              = res_ridge$pred,
+  "Lasso: genes + covariates"              = res_lasso$pred,
+  "Random forest: genes + covariates"      = res_rf$pred
 )
 
-### Metrics table: one row per model
+# check: does any model predict the same value for everyone? (sd = 0 -> R2 = NA)
+sapply(all_preds, sd)
+
+
+### 9b. Metrics table: one row per model
+# sRMSE < 1 = better than predicting the mean; R2 = proportion of variance explained
 model_metrics <- all_preds %>%
   map(~ calculate_metrics(y_vec, .x)) %>%
   bind_rows(.id = "model") %>%
@@ -265,83 +274,69 @@ model_metrics
 write.csv(model_metrics, file.path(tab_folder, "prediction_model_metrics.csv"),
           row.names = FALSE)
 
-### Observed vs predicted plot for every model
-iwalk(all_preds, function(pred, model_name) {
-  p <- plot_predictions(y_vec, pred, pred_dat$study_accession,
-                        paste0(model_name, "\n(nested cross-validation)"))
+
+### 9c. Observed vs predicted plot for every model: store, show and save
+pred_plots <- imap(all_preds, function(pred, model_name) {
+  plot_predictions(y_vec, pred, pred_dat$study_accession,
+                   paste0(model_name, "\n(nested cross-validation)"))
+})
+
+# show each plot in the Plots pane (use the arrows to browse)
+walk(pred_plots, print)
+
+# save each plot as its own file
+iwalk(pred_plots, function(p, model_name) {
   file_name <- paste0("pred_", gsub("[^A-Za-z0-9]+", "_", model_name), ".png")
   ggsave(file.path(fig_folder, file_name), p, width = 8, height = 8, dpi = 300)
 })
 
-### Tuned hyperparameters (for the methods / appendix)
-best_tunes <- list(
-  "Elastic net: genes only"   = res_enet_B$best_tune,
-  "Elastic net: genes + covs" = res_enet_C$best_tune,
-  "Ridge"                     = res_ridge$best_tune,
-  "Lasso"                     = res_lasso$best_tune,
-  "Random forest"             = res_rf$best_tune
-) %>% bind_rows(.id = "model")
 
+### 9d. All models in one figure (one panel per model, metrics in panel titles)
+all_preds_long <- imap_dfr(all_preds, function(pred, model_name) {
+  m <- calculate_metrics(y_vec, pred)
+  data.frame(
+    model     = sprintf("%s\nsRMSE = %.2f, R² = %.2f", model_name, m$sRMSE, m$R2),
+    observed  = y_vec,
+    predicted = pred,
+    study     = pred_dat$study_accession
+  )
+})
+
+# keep panels in the same order as all_preds (not alphabetical)
+all_preds_long$model <- factor(all_preds_long$model,
+                               levels = unique(all_preds_long$model))
+
+p_all <- ggplot(all_preds_long, aes(observed, predicted, colour = study)) +
+  geom_point(alpha = 0.7, size = 1.5) +
+  geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
+  facet_wrap(~ model, ncol = 3) +
+  coord_equal() +
+  scale_colour_discrete(labels = study_labels) +
+  labs(x = "Observed (standardised)", y = "Predicted", colour = "Study",
+       title = "Observed vs predicted day-7 classical monocyte frequency") +
+  theme(strip.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5))
+
+ggsave(file.path(fig_folder, "pred_all_models.png"), p_all,
+       width = 14, height = 10, dpi = 300)
+p_all
+
+
+### 9e. Tuned hyperparameters per outer fold (for the methods / appendix)
+# glmnet models have alpha + lambda; random forest has mtry, splitrule, min.node.size.
+# Columns that don't apply to a model are NA.
+best_tunes <- list(
+  "Elastic net: genes only"         = res_enet_B$best_tune,
+  "Elastic net: genes + covariates" = res_enet_C$best_tune,
+  "Ridge"                           = res_ridge$best_tune,
+  "Lasso"                           = res_lasso$best_tune,
+  "Random forest"                   = res_rf$best_tune
+) %>%
+  map(~ mutate(.x, fold = row_number())) %>%      # which outer fold each row is from
+  bind_rows(.id = "model") %>%
+  relocate(model, fold)
+
+best_tunes
 write.csv(best_tunes, file.path(tab_folder, "prediction_best_hyperparameters.csv"),
           row.names = FALSE)
-
-
-###############################################################################
-#  10. GENES SELECTED BY THE MAIN ELASTIC NET
-###############################################################################
-
-### 10a. Stability: proportion of outer folds selecting each gene
-selection_freq <- table(unlist(res_enet_C$selected)) / length(folds)
-
-stability <- data.frame(gene = names(selection_freq),
-                        prop = as.numeric(selection_freq)) %>%
-  filter(!gene %in% colnames(X_cov)) %>%          # genes only
-  arrange(desc(prop))
-
-# Optional: Ensembl ID -> gene symbol (Bioconductor package org.Hs.eg.db)
-if (requireNamespace("org.Hs.eg.db", quietly = TRUE)) {
-  stability$symbol <- AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
-                                            keys = stability$gene,
-                                            keytype = "ENSEMBL", column = "SYMBOL",
-                                            multiVals = "first")
-} else {
-  stability$symbol <- NA_character_
-}
-
-head(stability, 20)
-write.csv(stability, file.path(tab_folder, "enet_gene_stability.csv"), row.names = FALSE)
-
-p_stab <- stability %>%
-  filter(prop >= 0.5) %>%
-  mutate(label = coalesce(symbol, gene)) %>%
-  ggplot(aes(reorder(label, prop), prop)) +
-  geom_col() +
-  coord_flip() +
-  labs(x = "Gene", y = "Proportion of outer folds selected",
-       title = "Genes selected in ≥50% of folds (main elastic net)")
-ggsave(file.path(fig_folder, "enet_gene_stability.png"), p_stab,
-       width = 8, height = 8, dpi = 300)
-p_stab
-
-### 10b. Final model on all participants: coefficients for interpretation ONLY
-# (report performance from section 9, never from this model)
-final_enet <- train(
-  x = X_C, y = y_vec,
-  method    = "glmnet",
-  tuneGrid  = enet_grid,
-  trControl = trainControl(method = "cv", number = 5),
-  metric    = "RMSE",
-  penalty.factor = pf_C
-)
-
-final_enet$bestTune
-
-final_coefs <- as.matrix(coef(final_enet$finalModel, s = final_enet$bestTune$lambda)) %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column("feature") %>%
-  rename(coefficient = 2) %>%
-  filter(coefficient != 0, feature != "(Intercept)") %>%
-  arrange(desc(abs(coefficient)))
-
-head(final_coefs, 20)
-write.csv(final_coefs, file.path(tab_folder, "enet_final_coefficients.csv"), row.names = FALSE)
+# this shows that the model prefered a ridge regression because the alpha was 0 for all of the elastic net runs. This shows that more genes have smaller effects.
