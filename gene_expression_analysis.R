@@ -794,5 +794,43 @@ file.exists(file.path(output_folder, c(
 )))
 
 
+###############################################################################
+#### STEP 19 — MODEL 1: GENE LISTS FOR DAVID (GO ENRICHMENT)
+###############################################################################
+
+# 19.1 Prepare Model 1 results.
+# Ensembl IDs are stored as row names; we remove any version suffix
+# (e.g. ENSG00000123456.12 -> ENSG00000123456) because DAVID doesn't recognise it.
+
+david_input <- results_1 %>%
+  tibble::rownames_to_column("ensembl_gene_id") %>%
+  mutate(ensembl_gene_id = sub("\\..*$", "", ensembl_gene_id))
+
+
+# 19.2 Significant genes split by direction (FDR < 0.05).
+# Positive and negative associations are analysed separately because they
+# usually reflect different biological processes.
+
+genes_positive <- david_input %>%
+  filter(adj.P.Val < 0.05, logFC > 0) %>%
+  pull(ensembl_gene_id)
+
+genes_negative <- david_input %>%
+  filter(adj.P.Val < 0.05, logFC < 0) %>%
+  pull(ensembl_gene_id)
+
+# 19.3 Background: all genes tested in Model 1.
+# Only genes expressed in blood and passing filterByExpr could become significant,
+# so they (not the whole genome) are the correct reference for enrichment.
+
+genes_background <- david_input$ensembl_gene_id
+
+length(genes_positive)     # expect 987
+length(genes_negative)     # expect 884
+length(genes_background)   # all tested genes
+
+write_lines(genes_positive,   file.path(output_folder, "david_model1_positive.txt"))
+write_lines(genes_negative,   file.path(output_folder, "david_model1_negative.txt"))
+write_lines(genes_background, file.path(output_folder, "david_model1_background.txt"))
 
 
