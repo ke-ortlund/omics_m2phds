@@ -231,14 +231,7 @@ res_lasso <- nested_cv(X_C, y_vec, folds, method = "glmnet",
                        grid = expand.grid(alpha = 1, lambda = lambda_grid),
                        penalty.factor = pf_C)
 
-### 8c. Principal component regression
-ncomp_grid <- data.frame(ncomp = c(1, 2, 5, 10, 20))
-res_pcr <- nested_cv(X_C, y_vec, folds, method = "pcr", grid = ncomp_grid)
-
-### 8d. Partial least squares
-res_pls <- nested_cv(X_C, y_vec, folds, method = "pls", grid = ncomp_grid)
-
-### 8e. Random forest
+### 8d. Random forest
 p <- ncol(X_C)
 rf_grid <- expand.grid(
   mtry          = c(floor(sqrt(p)), floor(p / 10)),
@@ -259,8 +252,6 @@ all_preds <- list(
   "Elastic net: genes + covariates (main)"      = res_enet_C$pred,
   "Ridge: genes + covariates"                   = res_ridge$pred,
   "Lasso: genes + covariates"                   = res_lasso$pred,
-  "PCR: genes + covariates"                     = res_pcr$pred,
-  "PLS: genes + covariates"                     = res_pls$pred,
   "Random forest: genes + covariates"           = res_rf$pred
 )
 
@@ -288,8 +279,6 @@ best_tunes <- list(
   "Elastic net: genes + covs" = res_enet_C$best_tune,
   "Ridge"                     = res_ridge$best_tune,
   "Lasso"                     = res_lasso$best_tune,
-  "PCR"                       = res_pcr$best_tune,
-  "PLS"                       = res_pls$best_tune,
   "Random forest"             = res_rf$best_tune
 ) %>% bind_rows(.id = "model")
 
