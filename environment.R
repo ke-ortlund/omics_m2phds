@@ -53,6 +53,10 @@ theme_set(theme_bw() +
                   legend.key.size = unit(3, "cm"),
                   legend.text = element_text(size = 15, color = "grey30"))) 
 
+options(
+  ggplot2.discrete.fill   = list(c("#79CDCD", "#5CACEE")),
+  ggplot2.discrete.colour = list(c("#79CDCD", "#5CACEE"))
+)
 ###############################################################################
 # Filter and Merge Datasets
 ###############################################################################
