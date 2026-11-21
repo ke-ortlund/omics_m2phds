@@ -41,17 +41,17 @@ output_folder <- here("output")
 ###############################################################################
 
 theme_set(theme_bw() +
-            theme(title = element_text(size = 15, color = "grey30"),
-                  axis.title.x = element_text(size = 15, color = "grey30"),
-                  axis.title.y = element_text(size = 15, color = "grey30"),
-                  axis.text.x = element_text(size = 15, color = "grey30"),
-                  axis.text.y = element_text(size = 15, color = "grey30"),
+            theme(title = element_text(size = 15, color = "grey20"),
+                  axis.title.x = element_text(size = 15, color = "grey20"),
+                  axis.title.y = element_text(size = 15, color = "grey20"),
+                  axis.text.x = element_text(size = 15, color = "grey20"),
+                  axis.text.y = element_text(size = 15, color = "grey20"),
                   panel.grid = element_blank(),
-                  strip.text = element_text(size = 15, color = "grey30"),
+                  strip.text = element_text(size = 15, color = "grey20"),
                   strip.background = element_blank(), 
                   legend.position = "bottom",
                   legend.key.size = unit(3, "cm"),
-                  legend.text = element_text(size = 15, color = "grey30"))) 
+                  legend.text = element_text(size = 15, color = "grey20"))) 
 
 options(
   ggplot2.discrete.fill   = list(c("#79CDCD", "#5CACEE")),
