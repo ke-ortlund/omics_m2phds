@@ -35,6 +35,9 @@ rna_260821 <- read_csv("publicData_serology_260821.csv")
 dir.create(here("output"), showWarnings = FALSE)
 output_folder <- here("output")
 
+# Study lables
+study_labels <- c("2024_UGA" = "UGA 2024", "SDY2867" = "SDY 2867")
+
 
 ###############################################################################
 # Set global theme 

@@ -29,9 +29,6 @@ tab_folder <- file.path(output_folder, "tables")
 dir.create(fig_folder, showWarnings = FALSE)
 dir.create(tab_folder, showWarnings = FALSE)
 
-### Display names for the studies (used in all plots)
-study_labels <- c("2024_UGA" = "UGA 2024", "SDY2867" = "SDY 2867")
-
 ###############################################################################
 #  1. ANALYSIS DATASET: one row per participant
 ###############################################################################
@@ -130,8 +127,9 @@ plot_predictions <- function(true, predicted, study, title) {
     geom_point(alpha = 0.8, size = 2) +
     geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
     coord_equal(xlim = lims, ylim = lims) +
-    scale_colour_discrete(labels = study_labels) +          # nicer legend names
-    labs(title = title, x = "Observed (standardised)", y = "Predicted", colour = "Study")
+    scale_colour_discrete(labels = study_labels) +  
+    guides(colour = guide_legend(override.aes = list(size = 5, alpha = 1))) + # nicer legend names
+    labs(title = title, x = "Observed (standardised)", y = "Predicted", colour = "Study") 
 }
 
 ### 4c. Nested cross-validation for any caret model
