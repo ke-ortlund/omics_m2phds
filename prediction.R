@@ -285,7 +285,7 @@ walk(pred_plots, print)
 # save each plot as its own file
 iwalk(pred_plots, function(p, model_name) {
   file_name <- paste0("pred_", gsub("[^A-Za-z0-9]+", "_", model_name), ".png")
-  ggsave(file.path(fig_folder, file_name), p, width = 8, height = 8, dpi = 300)
+  ggsave(file.path(fig_folder, file_name), p, width = 8, height = 7, dpi = 300)
 })
 
 
