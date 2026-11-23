@@ -2,7 +2,7 @@
 # ENVIRONMENT SETUP 
 ###############################################################################
 
-#####Set working directory##### 
+#####Set working directory
 # Dynamic user name
 username <- Sys.getenv("HOME")
 
@@ -12,10 +12,10 @@ input_path <- file.path(username, "Documents", "GitHub", "omics_m2phds", "data")
 # Set wd
 setwd(input_path)
 
-#####Load packages##### 
+#####Load packages
 pacman::p_load(tidyverse, here, edgeR)
 
-#####Load datasets#####  
+#####Load datasets 
 # Particpants
 dem <- read.csv("participants.csv")
 # Vaccination history 

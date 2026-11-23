@@ -1,7 +1,7 @@
 "model","sRMSE","R2"
-"Reference: age, sex, study",0.78,0.385
-"Elastic net: genes only",0.647,0.577
-"Elastic net: genes + covariates (main)",0.696,0.512
-"Ridge: genes + covariates",0.651,0.572
-"Lasso: genes + covariates",0.687,0.523
-"Random forest: genes + covariates",0.688,0.523
+"Reference: age, sex, study",0.783,0.381
+"Elastic net: genes only",0.659,0.562
+"Main: elastic net: genes + covariates",0.657,0.566
+"Ridge: genes + covariates",0.666,0.556
+"Lasso: genes + covariates",0.719,0.493
+"Random forest: genes + covariates",0.668,0.552

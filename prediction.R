@@ -118,10 +118,10 @@ calculate_metrics <- function(true, predicted) {
 }
 
 ### 4b. Observed vs predicted plot (from the practical, coloured by study)
-plot_predictions <- function(true, predicted, study, title) {
+plot_predictions <- function(true, predicted, study, title = NULL) {
   rng  <- range(c(true, predicted))
   pad  <- diff(rng) * 0.02
-  lims <- c(rng[1] - pad, rng[2] + pad)
+  lims <- c(floor(rng[1]), ceiling(rng[2])) 
   
   ggplot(data.frame(true, predicted, study), aes(true, predicted, colour = study)) +
     geom_point(alpha = 0.8, size = 2) +
@@ -129,7 +129,7 @@ plot_predictions <- function(true, predicted, study, title) {
     coord_equal(xlim = lims, ylim = lims) +
     scale_colour_discrete(labels = study_labels) +  
     guides(colour = guide_legend(override.aes = list(size = 5, alpha = 1))) + # nicer legend names
-    labs(title = title, x = "Observed (standardised)", y = "Predicted", colour = "Study") 
+    labs(title = title, x = "Observed", y = "Predicted", colour = "Study") 
 }
 
 ### 4c. Nested cross-validation for any caret model
@@ -251,7 +251,7 @@ res_rf <- nested_cv(X_C, y_vec, folds, method = "ranger", grid = rf_grid)
 all_preds <- list(
   "Reference: age, sex, study"             = pred_ref,
   "Elastic net: genes only"                = res_enet_B$pred,
-  "Elastic net: genes + covariates (main)" = res_enet_C$pred,
+  "Main: elastic net: genes + covariates" = res_enet_C$pred,
   "Ridge: genes + covariates"              = res_ridge$pred,
   "Lasso: genes + covariates"              = res_lasso$pred,
   "Random forest: genes + covariates"      = res_rf$pred
@@ -275,8 +275,7 @@ write.csv(model_metrics, file.path(tab_folder, "prediction_model_metrics.csv"),
 
 ### 9c. Observed vs predicted plot for every model: store, show and save
 pred_plots <- imap(all_preds, function(pred, model_name) {
-  plot_predictions(y_vec, pred, pred_dat$study_accession,
-                   paste0(model_name, "\n(nested cross-validation)"))
+  plot_predictions(y_vec, pred, pred_dat$study_accession)
 })
 
 # show each plot in the Plots pane (use the arrows to browse)
@@ -310,7 +309,7 @@ p_all <- ggplot(all_preds_long, aes(observed, predicted, colour = study)) +
   facet_wrap(~ model, ncol = 3) +
   coord_equal() +
   scale_colour_discrete(labels = study_labels) +
-  labs(x = "Observed (standardised)", y = "Predicted", colour = "Study",
+  labs(x = "Observed", y = "Predicted", colour = "Study",
        title = "Observed vs predicted day-7 classical monocyte frequency") +
   theme(strip.text = element_text(size = 10),
         plot.title = element_text(hjust = 0.5))
