@@ -3,14 +3,16 @@
 ###############################################################################
 
 
+###### DELETE THIS SECTION, use flow_mon_clean, it was already completed in the environment script
+
 ### 1. Add day-7 monocyte value to sample_info (one value per participant)
 # 2024_UGA x100 (proportion -> %), as above. Mean in case a participant has >1 row.
-sample_info <- sample_info %>%
-  left_join(flow_mon_clean %>%
-              mutate(value_clean = if_else(study_accession == "2024_UGA", value * 100, value)) %>%
-              group_by(participant_id) %>%
-              summarise(monocyte = mean(value_clean, na.rm = TRUE)),
-            by = "participant_id")
+#sample_info <- sample_info %>%
+ # left_join(flow_mon_clean %>%
+#              mutate(value_clean = if_else(study_accession == "2024_UGA", value * 100, value)) %>%
+#              group_by(participant_id) %>%
+#              summarise(monocyte = mean(value_clean, na.rm = TRUE)),
+#            by = "participant_id")
 
 
 ### 2. Run PCA on the 1000 most variable genes
@@ -48,7 +50,7 @@ ggsave(file.path(output_folder, "pca_by_study.png"), #saving output
        p_pca_study, width = 8, height = 6, dpi = 300)
 
 
-
+##### Doesn't run!
 # By day-7 monocytes: shape = study to see the gradient within each study
 p_pca_day7 <- ggplot(pca_scores, aes(PC1, PC2, colour = monocyte, shape = study_accession)) +
   geom_point(size = 3) +
@@ -65,7 +67,7 @@ p_pca_day7
 ggsave(file.path(output_folder, "pca_by_day7.png"), #save output
        p_pca_day7, width = 8, height = 6, dpi = 300)
 
-
+#### Doesn'r run!
 ### 4. Does PC2 match biological sex?
 # Add sex from dem (distinct() so each participant appears once).
 # PC2 splits into two groups at about 0 (see PCA plot), so we use 0 as the cut-off.
