@@ -380,3 +380,88 @@ main_within_ci <- pred_dat %>%
 main_within_ci
 write.csv(main_within_ci, file.path(tab_folder, "main_model_within_study_ci.csv"),
           row.names = FALSE)
+
+###############################################################################
+#  10. SENSITIVITY ANALYSIS: STUDY EFFECT REMOVED (within-study centring)
+###############################################################################
+# PCA showed that study dominates gene expression (PC1 = 62% of variance),
+# and monocyte levels also differ between studies. Here the study effect is
+# removed from BOTH the outcome and the genes, so the model can only learn
+# differences between individuals within each study.
+
+### 10a. Outcome: centre within study, then standardise
+y_within <- pred_dat %>%
+  mutate(y = monocytes) %>%
+  group_by(study_accession) %>%
+  mutate(y = y - mean(y)) %>%          # each study now has mean 0
+  ungroup() %>%
+  pull(y)
+
+y_within <- as.numeric(scale(y_within))   # overall SD = 1 (comparable sRMSE)
+
+# check: both studies centred on 0
+tapply(y_within, pred_dat$study_accession, mean)
+
+
+### 10b. Genes: centre each gene within study, then standardise
+X_genes_c <- X_genes                        # unscaled log2-CPM, participants x genes
+for (s in unique(pred_dat$study_accession)) {
+  idx <- pred_dat$study_accession == s
+  X_genes_c[idx, ] <- scale(X_genes[idx, ], center = TRUE, scale = FALSE)
+}
+X_genes_c <- scale(X_genes_c)
+X_genes_c <- X_genes_c[, colSums(is.na(X_genes_c)) == 0]   # drop genes with no variance left
+dim(X_genes_c)
+
+
+### 10c. Covariates: age and sex only (study no longer needed: effect removed)
+X_cov_within <- model.matrix(~ age + sex, data = pred_dat)[, -1, drop = FALSE] %>%
+  scale()
+
+X_within  <- cbind(X_cov_within, X_genes_c)
+pf_within <- c(rep(0, ncol(X_cov_within)), rep(1, ncol(X_genes_c)))   # covariates unpenalised
+
+
+### 10d. Reference for comparison: age and sex only, same folds
+pred_ref_within <- rep(NA_real_, n)
+for (i in seq_along(folds)) {
+  test_idx  <- folds[[i]]
+  train_idx <- setdiff(seq_len(n), test_idx)
+  df_train  <- data.frame(y = y_within[train_idx], X_cov_within[train_idx, , drop = FALSE])
+  df_test   <- data.frame(X_cov_within[test_idx, , drop = FALSE])
+  pred_ref_within[test_idx] <- predict(lm(y ~ ., data = df_train), newdata = df_test)
+}
+
+
+### 10e. Elastic net with study effect removed (same folds and grid as main model)
+res_enet_within <- suppressWarnings(
+  nested_cv(X_within, y_within, folds, method = "glmnet",
+            grid = enet_grid, penalty.factor = pf_within)
+)
+
+res_enet_within$best_tune   # check tuning (lambda at the grid edge?)
+
+
+### 10f. Performance
+within_metrics <- list(
+  "Reference (age, sex), study removed"            = pred_ref_within,
+  "Elastic net (genes + age, sex), study removed"  = res_enet_within$pred
+) %>%
+  map(~ calculate_metrics(y_within, .x)) %>%
+  bind_rows(.id = "model") %>%
+  mutate(across(c(sRMSE, R2), ~ round(.x, 3)))
+
+within_metrics
+write.csv(within_metrics, file.path(tab_folder, "sensitivity_study_removed_metrics.csv"),
+          row.names = FALSE)
+
+
+### 10g. Observed vs predicted plot
+p_within <- plot_predictions(
+  y_within, res_enet_within$pred, pred_dat$study_accession,
+  "Elastic net, study effect removed: observed vs predicted"
+) + theme(plot.title = element_text(hjust = 0.5))
+
+ggsave(file.path(fig_folder, "pred_enet_study_removed.png"), p_within,
+       width = 8, height = 8, dpi = 300)
+p_within
