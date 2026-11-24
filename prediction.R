@@ -13,17 +13,10 @@
 ###############################################################################
 #  0. SETUP
 ###############################################################################
-
-### Load prepared data (comment out if environment.R has already been run)
-# source(here::here("environment.R"))
-
-### Modelling packages
 pacman::p_load(caret, glmnet, pls, ranger)
 
-### Reproducibility: same folds and same results every run
 set.seed(123)
 
-### Output subfolders (output_folder is created in environment.R)
 fig_folder <- file.path(output_folder, "figures")
 tab_folder <- file.path(output_folder, "tables")
 dir.create(fig_folder, showWarnings = FALSE)
@@ -32,24 +25,25 @@ dir.create(tab_folder, showWarnings = FALSE)
 ###############################################################################
 #  1. ANALYSIS DATASET: one row per participant
 ###############################################################################
+## performing some checks (one row per patient, missingness) and removing vaccine history from the data since it is uninformative
 
 pred_dat <- mon_dem_clean %>%
   transmute(
     participant_id,
     study_accession,
-    monocytes    = value_clean,                   # day-7 classical monocytes (% of CD45+)
+    monocytes    = value_clean,                   
     age,
     sex          = biological_sex,
-    vacc_history = coalesce(vacc_any, 0L)         # no vaccine record -> 0
+    vacc_history = coalesce(vacc_any, 0L)         
   ) %>%
-  arrange(participant_id)                         # same order as logcpm columns
+  arrange(participant_id)                         
 
 ### Checks
-nrow(pred_dat)                                    # 77
-n_distinct(pred_dat$participant_id)               # 77 (one row each)
-pred_dat %>% count(study_accession)               # 53 SDY2867, 24 2024_UGA
-pred_dat %>% count(study_accession, vacc_history) # how informative is vaccine history? not informative -> dropped from model
-summary(pred_dat)                                 # NAs in age / sex?
+nrow(pred_dat)                                    
+n_distinct(pred_dat$participant_id)               
+pred_dat %>% count(study_accession)               
+pred_dat %>% count(study_accession, vacc_history) 
+summary(pred_dat)                                 
 
 ### Expression matrix in the same participant order
 stopifnot(all(colnames(logcpm) == pred_dat$participant_id))
@@ -69,7 +63,7 @@ ggsave(file.path(fig_folder, "outcome_distribution.png"), p_outcome,
        width = 9, height = 5, dpi = 300)
 p_outcome
 
-### Standardise the pooled outcome (mean 0, SD 1), as in the practical
+### Standardize the pooled outcome (mean 0, SD 1), as in the practical
 # sRMSE can then be read directly: 1 = no better than predicting the mean
 y_vec <- as.numeric(scale(pred_dat$monocytes))
 n     <- length(y_vec)
@@ -80,10 +74,11 @@ n     <- length(y_vec)
 ###############################################################################
 
 ### 3a. Genes: participants (rows) x genes (columns), all filtered genes
+## dropping zero-variance genes, standardizing genes
 X_genes <- t(logcpm)
-X_genes <- X_genes[, apply(X_genes, 2, sd) > 0]   # drop zero-variance genes
-X_genes_s <- scale(X_genes)                       # standardise each gene
-dim(X_genes_s)                                    # 77 x number of genes (report in methods)
+X_genes <- X_genes[, apply(X_genes, 2, sd) > 0]  
+X_genes_s <- scale(X_genes)                      
+dim(X_genes_s)                                    
 
 ### 3b. Covariates: age, sex, study (sex and study become 0/1)
 X_cov <- model.matrix(~ age + sex + study_accession,
@@ -93,13 +88,14 @@ X_cov <- model.matrix(~ age + sex + study_accession,
 X_cov <- X_cov[, apply(X_cov, 2, sd) > 0, drop = FALSE]
 X_cov <- scale(X_cov)
 
-stopifnot(nrow(X_cov) == n)                       # no rows lost to NAs
-colnames(X_cov)                                   # which covariates are in the model
+stopifnot(nrow(X_cov) == n)                       
+colnames(X_cov)                                   
 
 ### 3c. Three predictor sets
-X_A <- X_cov                       # A: covariates only (reference)
-X_B <- X_genes_s                   # B: genes only
-X_C <- cbind(X_cov, X_genes_s)     # C: genes + covariates (main model)
+## creating 3 predictor sets, A (covariates only), B(genes only), C(genes+covariates)
+X_A <- X_cov                       
+X_B <- X_genes_s                   
+X_C <- cbind(X_cov, X_genes_s)     
 
 ### 3d. Penalty factor for glmnet models using X_C
 # 0 = covariate never penalised (always kept); 1 = gene penalised as usual
@@ -337,3 +333,50 @@ best_tunes
 write.csv(best_tunes, file.path(tab_folder, "prediction_best_hyperparameters.csv"),
           row.names = FALSE)
 # this shows that the model prefered a ridge regression because the alpha was 0 for all of the elastic net runs. This shows that more genes have smaller effects.
+
+### 9f. Within study performance
+# Correlation between observed and predicted values WITHIN each study.
+# Shows whether models capture differences between individuals,
+# not just the difference between the two studies.
+
+### Correlation per model and per study
+within_study <- imap_dfr(all_preds, function(pred, model_name) {
+  pred_dat %>%
+    mutate(observed = y_vec, predicted = pred) %>%
+    group_by(study_accession) %>%
+    summarise(
+      model    = model_name,
+      n        = n(),
+      r_within = cor(observed, predicted),   # Pearson correlation within study
+      .groups  = "drop"
+    )
+}) %>%
+  mutate(r_within = round(r_within, 2)) %>%
+  select(model, study_accession, n, r_within) %>%
+  tidyr::pivot_wider(names_from  = study_accession,
+                     values_from = c(n, r_within))
+
+within_study
+write.csv(within_study, file.path(tab_folder, "prediction_within_study_correlation.csv"),
+          row.names = FALSE)
+
+
+### 95% confidence intervals for the main model
+# (uncertainty is large with n = 24 in UGA 2024)
+main_within_ci <- pred_dat %>%
+  mutate(observed = y_vec, predicted = res_enet_C$pred) %>%
+  group_by(study_accession) %>%
+  summarise(
+    n     = n(),
+    r     = cor(observed, predicted),
+    lower = cor.test(observed, predicted)$conf.int[1],
+    upper = cor.test(observed, predicted)$conf.int[2],
+    p     = cor.test(observed, predicted)$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(across(c(r, lower, upper), ~ round(.x, 2)),
+         p = signif(p, 2))
+
+main_within_ci
+write.csv(main_within_ci, file.path(tab_folder, "main_model_within_study_ci.csv"),
+          row.names = FALSE)
