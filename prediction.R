@@ -1,13 +1,6 @@
 ###############################################################################
 #  PREDICTION: day-7 classical monocyte frequency from baseline gene expression
 ###############################################################################
-#  0. Setup                         6. Reference model (covariates only)
-#  1. One row per participant       7. Main model: elastic net
-#  2. Outcome                       8. Sensitivity analyses: other models
-#  3. Predictors                    9. Performance of all models
-#  4. Helper functions             10. Genes selected by the elastic net
-#  5. Cross-validation folds
-###############################################################################
 
 
 ###############################################################################
@@ -25,7 +18,8 @@ dir.create(tab_folder, showWarnings = FALSE)
 ###############################################################################
 #  1. ANALYSIS DATASET: one row per participant
 ###############################################################################
-## performing some checks (one row per patient, missingness) and removing vaccine history from the data since it is uninformative
+## performing some checks (one row per patient, missingness) and removing 
+## vaccine history from the data since it is uninformative
 
 pred_dat <- mon_dem_clean %>%
   transmute(
@@ -389,11 +383,11 @@ write.csv(main_within_ci, file.path(tab_folder, "main_model_within_study_ci.csv"
 # removed from BOTH the outcome and the genes, so the model can only learn
 # differences between individuals within each study.
 
-### 10a. Outcome: centre within study, then standardise
+### 10a. Outcome: centre within study, then standardise (each study now has mean 0)
 y_within <- pred_dat %>%
   mutate(y = monocytes) %>%
   group_by(study_accession) %>%
-  mutate(y = y - mean(y)) %>%          # each study now has mean 0
+  mutate(y = y - mean(y)) %>%          
   ungroup() %>%
   pull(y)
 
@@ -404,13 +398,13 @@ tapply(y_within, pred_dat$study_accession, mean)
 
 
 ### 10b. Genes: centre each gene within study, then standardise
-X_genes_c <- X_genes                        # unscaled log2-CPM, participants x genes
+X_genes_c <- X_genes                      
 for (s in unique(pred_dat$study_accession)) {
   idx <- pred_dat$study_accession == s
   X_genes_c[idx, ] <- scale(X_genes[idx, ], center = TRUE, scale = FALSE)
 }
 X_genes_c <- scale(X_genes_c)
-X_genes_c <- X_genes_c[, colSums(is.na(X_genes_c)) == 0]   # drop genes with no variance left
+X_genes_c <- X_genes_c[, colSums(is.na(X_genes_c)) == 0]
 dim(X_genes_c)
 
 
@@ -419,7 +413,7 @@ X_cov_within <- model.matrix(~ age + sex, data = pred_dat)[, -1, drop = FALSE] %
   scale()
 
 X_within  <- cbind(X_cov_within, X_genes_c)
-pf_within <- c(rep(0, ncol(X_cov_within)), rep(1, ncol(X_genes_c)))   # covariates unpenalised
+pf_within <- c(rep(0, ncol(X_cov_within)), rep(1, ncol(X_genes_c)))
 
 
 ### 10d. Reference for comparison: age and sex only, same folds
@@ -439,7 +433,7 @@ res_enet_within <- suppressWarnings(
             grid = enet_grid, penalty.factor = pf_within)
 )
 
-res_enet_within$best_tune   # check tuning (lambda at the grid edge?)
+res_enet_within$best_tune   # check tuning
 
 
 ### 10f. Performance

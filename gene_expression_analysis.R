@@ -1,5 +1,5 @@
 ###############################################################################
-# STEP 1 — VERIFY PARTICIPANT IDENTIFIERS
+# STEP 1- VERIFY PARTICIPANT IDENTIFIERS
 ###############################################################################
 
 # Check whether participant IDs appear in more than one study.
@@ -37,15 +37,11 @@ names(mon_dem_clean)
 #### GENE EXPRESSION ANALYSIS
 ###############################################################################
 
-# Research question:
-# Is baseline (Day 0) gene expression associated with the percentage of
-# classical monocytes at Day 7 following influenza vaccination?
-
 # Study population:
 # 77 participants from two studies: 2024_UGA and SDY2867.
 
-# Data preprocessing:
-# RNA-seq filtering and TMM normalization have already been performed
+# Data pre-work:
+# RNA-seq filtering and TMM normalization have already been done
 # in environment.R. Monocyte percentages have also been harmonized.
 # These preprocessed data will be reused without repeating normalization.
 
@@ -54,7 +50,7 @@ names(mon_dem_clean)
 # sex-related variation (PC2: 6.7%) among the 1,000 most variable genes.
 # Batch effects will be investigated separately.
 #
-# Statistical significance threshold: FDR < 0.05.
+# Statistical significance threshold FDR < 0.05.
 
 # Analysis plan:
 
@@ -147,9 +143,9 @@ dim(logcpm)
 #### STEP 3 — CHECK MISSING VALUES
 ###############################################################################
 
-# Check missing values in participant characteristics.
+#Check missing values in participant characteristics.
 # This helps us determine whether all 77 participants can be included
-# in Model 0 and which variables are complete for the adjusted models.
+# in Model 0 and which variables are complete for the adjusted models
 
 colSums(is.na(sample_metadata))
 
@@ -158,7 +154,7 @@ sum(is.na(logcpm))
 
 
 ###############################################################################
-#### STEP 4 — MODEL 0: CREATE THE DESIGN MATRIX
+#### STEP 4 — MODEL 0 CREATE THE DESIG MATRIX
 ###############################################################################
 
 # 4.1 Define the unadjusted regression model.
@@ -196,7 +192,6 @@ head(design_0)
 # 5.1 Apply voom to the TMM-normalized RNA-seq data.
 # voom transforms RNA-seq counts into log2-CPM expression values
 # and estimates precision weights for each gene and participant.
-#
 # We use the existing dge object from environment.R,
 # which has already been filtered and TMM-normalized.
 
@@ -217,7 +212,7 @@ dim(voom_0$weights)
 
 
 ###############################################################################
-#### STEP 6 — MODEL 0: FIT LINEAR MODELS USING LIMMA
+#### STEP 6 — MODEL 0: FIT LINEAR MODELS WITH LIMMA
 ###############################################################################
 
 # 6.1 Fit a weighted linear regression for each gene.
@@ -247,7 +242,7 @@ head(fit_0$coefficients)
 
 
 ###############################################################################
-#### STEP 7 — MODEL 0: EXTRACT REGRESSION RESULTS
+######## STEP 7 — MODEL 0: EXTRACT REGRESSION RESULTS
 ###############################################################################
 
 # 7.1 Extract the regression results for all 17,165 genes.
