@@ -1,13 +1,6 @@
 ###############################################################################
 #  PREDICTION: day-7 classical monocyte frequency from baseline gene expression
 ###############################################################################
-#  0. Setup                         6. Reference model (covariates only)
-#  1. One row per participant       7. Main model: elastic net
-#  2. Outcome                       8. Sensitivity analyses: other models
-#  3. Predictors                    9. Performance of all models
-#  4. Helper functions             10. Genes selected by the elastic net
-#  5. Cross-validation folds
-###############################################################################
 
 
 ###############################################################################
@@ -25,7 +18,8 @@ dir.create(tab_folder, showWarnings = FALSE)
 ###############################################################################
 #  1. ANALYSIS DATASET: one row per participant
 ###############################################################################
-## performing some checks (one row per patient, missingness) and removing vaccine history from the data since it is uninformative
+## performing some checks (one row per patient, missingness) and removing 
+## vaccine history from the data since it is uninformative
 
 pred_dat <- mon_dem_clean %>%
   transmute(
