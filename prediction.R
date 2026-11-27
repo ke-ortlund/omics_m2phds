@@ -457,5 +457,5 @@ p_within <- plot_predictions(
 ) + theme(plot.title = element_text(hjust = 0.5))
 
 ggsave(file.path(fig_folder, "pred_enet_study_removed.png"), p_within,
-       width = 8, height = 8, dpi = 300)
+       width = 8, height = 7, dpi = 300)
 p_within
