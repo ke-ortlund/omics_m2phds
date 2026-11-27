@@ -1,1 +1,3 @@
-# omics_m2phds
+# M2PHDS
+
+OMICS: Group Project 
