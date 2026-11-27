@@ -1,51 +1,51 @@
 "model","fold","alpha","lambda","mtry","splitrule","min.node.size"
-"Elastic net: genes only",1,0,5,NA,NA,NA
-"Elastic net: genes only",2,0,5,NA,NA,NA
-"Elastic net: genes only",3,0,5,NA,NA,NA
+"Elastic net: genes only",1,0,20,NA,NA,NA
+"Elastic net: genes only",2,0,20,NA,NA,NA
+"Elastic net: genes only",3,0,20,NA,NA,NA
 "Elastic net: genes only",4,0,5,NA,NA,NA
-"Elastic net: genes only",5,0,5,NA,NA,NA
-"Elastic net: genes only",6,0,50,NA,NA,NA
-"Elastic net: genes only",7,0,5,NA,NA,NA
+"Elastic net: genes only",5,0,20,NA,NA,NA
+"Elastic net: genes only",6,0,5,NA,NA,NA
+"Elastic net: genes only",7,1,0.005,NA,NA,NA
 "Elastic net: genes only",8,0,5,NA,NA,NA
 "Elastic net: genes only",9,0,5,NA,NA,NA
-"Elastic net: genes only",10,0,5,NA,NA,NA
-"Elastic net: genes + covariates",1,0,20,NA,NA,NA
-"Elastic net: genes + covariates",2,0,20,NA,NA,NA
+"Elastic net: genes only",10,0,20,NA,NA,NA
+"Elastic net: genes + covariates",1,0,5,NA,NA,NA
+"Elastic net: genes + covariates",2,0,10,NA,NA,NA
 "Elastic net: genes + covariates",3,0,20,NA,NA,NA
 "Elastic net: genes + covariates",4,0,5,NA,NA,NA
-"Elastic net: genes + covariates",5,0,50,NA,NA,NA
-"Elastic net: genes + covariates",6,0.75,0.1,NA,NA,NA
-"Elastic net: genes + covariates",7,0,50,NA,NA,NA
-"Elastic net: genes + covariates",8,0,5,NA,NA,NA
+"Elastic net: genes + covariates",5,0,5,NA,NA,NA
+"Elastic net: genes + covariates",6,0.25,0.05,NA,NA,NA
+"Elastic net: genes + covariates",7,0,5,NA,NA,NA
+"Elastic net: genes + covariates",8,0.25,0.5,NA,NA,NA
 "Elastic net: genes + covariates",9,0,5,NA,NA,NA
 "Elastic net: genes + covariates",10,0,50,NA,NA,NA
-"Ridge",1,0,5,NA,NA,NA
+"Ridge",1,0,20,NA,NA,NA
 "Ridge",2,0,5,NA,NA,NA
 "Ridge",3,0,5,NA,NA,NA
 "Ridge",4,0,5,NA,NA,NA
-"Ridge",5,0,5,NA,NA,NA
-"Ridge",6,0,50,NA,NA,NA
+"Ridge",5,0,50,NA,NA,NA
+"Ridge",6,0,5,NA,NA,NA
 "Ridge",7,0,5,NA,NA,NA
 "Ridge",8,0,50,NA,NA,NA
 "Ridge",9,0,5,NA,NA,NA
 "Ridge",10,0,20,NA,NA,NA
-"Lasso",1,1,0.1,NA,NA,NA
-"Lasso",2,1,0.05,NA,NA,NA
-"Lasso",3,1,0.01,NA,NA,NA
-"Lasso",4,1,0.05,NA,NA,NA
-"Lasso",5,1,0.1,NA,NA,NA
-"Lasso",6,1,0.05,NA,NA,NA
+"Lasso",1,1,0.005,NA,NA,NA
+"Lasso",2,1,0.1,NA,NA,NA
+"Lasso",3,1,0.1,NA,NA,NA
+"Lasso",4,1,0.005,NA,NA,NA
+"Lasso",5,1,0.01,NA,NA,NA
+"Lasso",6,1,0.01,NA,NA,NA
 "Lasso",7,1,0.005,NA,NA,NA
-"Lasso",8,1,0.005,NA,NA,NA
+"Lasso",8,1,0.1,NA,NA,NA
 "Lasso",9,1,0.1,NA,NA,NA
 "Lasso",10,1,0.1,NA,NA,NA
 "Random forest",1,NA,NA,1716,"variance",5
 "Random forest",2,NA,NA,1716,"variance",5
 "Random forest",3,NA,NA,1716,"variance",5
 "Random forest",4,NA,NA,1716,"variance",5
-"Random forest",5,NA,NA,1716,"variance",5
-"Random forest",6,NA,NA,1716,"variance",10
-"Random forest",7,NA,NA,131,"variance",10
-"Random forest",8,NA,NA,1716,"variance",5
+"Random forest",5,NA,NA,1716,"variance",10
+"Random forest",6,NA,NA,131,"variance",10
+"Random forest",7,NA,NA,1716,"variance",10
+"Random forest",8,NA,NA,131,"variance",10
 "Random forest",9,NA,NA,1716,"variance",10
 "Random forest",10,NA,NA,1716,"variance",10

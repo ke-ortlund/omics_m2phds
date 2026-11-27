@@ -1,3 +1,3 @@
 "model","sRMSE","R2"
-"Reference (age, sex), study removed",0.977,0.05
-"Elastic net (genes + age, sex), study removed",0.77,0.403
+"Reference (age, sex), study removed",0.972,0.056
+"Elastic net (genes + age, sex), study removed",0.814,0.332

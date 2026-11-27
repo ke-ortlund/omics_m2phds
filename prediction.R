@@ -450,20 +450,10 @@ write.csv(within_metrics, file.path(tab_folder, "sensitivity_study_removed_metri
           row.names = FALSE)
 
 
-### 10g. Observed vs predicted plot
-p_within <- ggplot(
-  data.frame(observed  = y_within,
-             predicted = res_enet_within$pred,
-             study     = pred_dat$study_accession),
-  aes(observed, predicted, colour = study)
-) +
-  geom_point(size = 2, alpha = 0.9) +
-  geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
-  coord_equal(xlim = lims, ylim = lims) +
-  scale_x_continuous(breaks = -2:3) +
-  scale_y_continuous(breaks = -2:3) +
-  scale_colour_manual(values = study_colours, labels = study_labels) +
-  labs(x = "Observed", y = "Predicted", colour = "Study", title = NULL)
+### 10g. Observed vs predicted plot (study effect removed)
+p_within <- plot_predictions(
+  y_within, res_enet_within$pred, pred_dat$study_accession
+)
 
 ggsave(file.path(fig_folder, "pred_enet_study_removed.png"), p_within,
        width = 8, height = 7, dpi = 300)
